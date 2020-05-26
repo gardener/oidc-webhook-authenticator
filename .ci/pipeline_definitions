@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2020 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+oidc-webhook-authenticator:
+  template: default
+  base_definition:
+    repo: ~
+    traits:
+      version:
+        preprocess: inject-commit-hash
+      publish:
+        oci-builder: kaniko
+        dockerimages:
+          oidc-webhook-authenticator:
+            registry: gcr-readwrite
+            image: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
+            dockerfile: Dockerfile
+            tag_template: ${EFFECTIVE_VERSION}
+            tag_as_latest: false
+    steps: ~
+  jobs:
+    head-update:
+      traits:
+        component_descriptor: ~
+        draft_release: ~
+    pull-request:
+      traits:
+        pull-request: ~
+        component_descriptor: ~
+    release:
+      traits:
+        version:
+          preprocess: finalize
+        release:
+          nextversion: bump_minor
+        component_descriptor: ~
+        publish:
+          dockerimages:
+            oidc-webhook-authenticator:
+              tag_as_latest: true

@@ -1,0 +1,350 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oidc-webhook-authenticator-system
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oidc-webhook-authenticator
+  namespace: oidc-webhook-authenticator-system
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gardener.cloud:authentication:oidc-webhook-authenticator
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: oidc-webhook-authenticator
+  namespace: oidc-webhook-authenticator-system
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gardener.cloud:authentication:oidc-webhook-authenticator
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - authentication.gardener.cloud
+  resources:
+  - openidconnects
+  verbs:
+  - get
+  - list
+  - watch
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gardener.cloud:authentication:oidc-webhook-authenticator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gardener.cloud:authentication:oidc-webhook-authenticator
+subjects:
+- kind: ServiceAccount
+  name: oidc-webhook-authenticator
+  namespace: oidc-webhook-authenticator-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oidc-webhook-authenticator
+  namespace: oidc-webhook-authenticator-system
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: oidc-webhook-authenticator
+  template:
+    metadata:
+      labels:
+        app: oidc-webhook-authenticator
+    spec:
+      serviceAccount: oidc-webhook-authenticator
+      hostNetwork: true # needed because kube-apiserver cannot use kube-dns
+      containers:
+      - name: authenticator
+        image: oidc-webhook-authenticator:latest
+        imagePullPolicy: IfNotPresent
+        args:
+        - --tls-cert-file=/var/run/certs/tls.crt
+        - --tls-private-key-file=/var/run/certs/tls.key
+        - --v=6
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+        volumeMounts:
+        - name: certs
+          mountPath: /var/run/certs
+      volumes:
+      - name: certs
+        secret:
+          secretName: oidc-webhook-authenticator
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: oidc-webhook-authenticator
+  namespace: oidc-webhook-authenticator-system
+spec:
+  selector:
+    app: oidc-webhook-authenticator
+  type:  ClusterIP
+  ports:
+  - name: https
+    port: 443
+    targetPort: 10443
+
+---
+
+kind: Secret
+apiVersion: v1
+metadata:
+  name: oidc-webhook-authenticator
+  namespace: oidc-webhook-authenticator-system
+type: kubernetes.io/tls
+stringData:
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIDwzCCAqugAwIBAgIUIY1HnRLA85ttJ7+EmFBVr+UAcmIwDQYJKoZIhvcNAQEL
+    BQAwFTETMBEGA1UEAxMKbWluaWt1YmVDQTAeFw0yMTAyMjQxMjM4MDBaFw0yMjAy
+    MjQxMjM4MDBaMEExCzAJBgNVBAYTAlVTMRYwFAYDVQQIEw1TYW4gRnJhbmNpc2Nv
+    MQswCQYDVQQHEwJDQTENMAsGA1UEAxMEZGVtbzCCASIwDQYJKoZIhvcNAQEBBQAD
+    ggEPADCCAQoCggEBAMaMFH6yGqUG5jWZaI+JVt+zENe9JalfSirx2KVZouMvLxVN
+    xZT1o+DlnRHivWkeebr4WLVqryAGINxGDJ7ywlTDikc9IYOEl64KGC24XbIyVZQt
+    fsVYdXqoRqM2g0jNfdzmd5L3hc0slo1lw8w8IdG3tvbY38TTEzkSWzQJ3sXPLTAD
+    SOyQh97ryVMKlJ6ThmvZBp9CQHqEem+gvX8EZhKGtQcaH1Tmi0vFo+d1yoeaWLS/
+    Czkrfo4GYQ+jyafVtrf7Zh28GwaV9IhbtdpGeUhibyKO5thVW+SmmxrEszJ44QIf
+    g/Bzg2PhzPMzkh1zub/7a0rVmEm2wF8lPR51CSECAwEAAaOB3jCB2zAOBgNVHQ8B
+    Af8EBAMCBaAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMAwGA1UdEwEB
+    /wQCMAAwHQYDVR0OBBYEFD6VcJpJafkViNW3IbRk48B5DCQPMH0GA1UdEQR2MHSC
+    QG9pZGMtd2ViaG9vay1hdXRoZW50aWNhdG9yLm9pZGMtd2ViaG9vay1hdXRoZW50
+    aWNhdG9yLXN5c3RlbS5zdmOCH2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJu
+    YWyCCWxvY2FsaG9zdIcEfwAAATANBgkqhkiG9w0BAQsFAAOCAQEAZeSVsoayIUFU
+    s1koNsUQXE+nhhv6AqsOWNzgjyNvOj6Yju5nTVONgs5LMfjgq5zYISaI4p0qsuu6
+    ErYpBwBJ0aML2LuYuPETE+Ns6jhHLxaMfxPn6Ay2BU9zskozktTMoZ+oGc0lEryF
+    WMBvH9ygdybqnCvGgHqxZZ+P4tmwY6oALkWtvtRPNtQnGtfsCL6AdyHyQEO58wVu
+    mdYKIpbXbL8NZVBYJmeaU20k65Zyl8Lf4A2KJuLVI3SGU4pDl4qb6pzjIvuoq7rC
+    772IxDXhQXHEDJHadqqhgxTmObwbaj5CJnPeBJ4ezViWUOBxedWsTYGf2+G4vFDs
+    8PhtIbzebw==
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    MIIC5zCCAc+gAwIBAgIBATANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwptaW5p
+    a3ViZUNBMB4XDTE5MDQwMjIyMDg1M1oXDTI5MDMzMTIyMDg1M1owFTETMBEGA1UE
+    AxMKbWluaWt1YmVDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAL/2
+    OyylDjOq6kNYWIYySL2OBljKzxyY7Q5yJVr1/jNixuP0qOuq+28PXVenv0ZdDEu5
+    24TcOVLG47x5A1i2gQ3LIOw7yUvii27VG9ZoUFKD1bBQMJLYYZsYYzTDL8ODLuFn
+    0/HLHsV2SjnMrpJPSAefKHGMW/rqawEmk7Asf83bL+bfm+2mwuvI6Lbhh3rEHGkP
+    xVm+DoMnuYDGGsnHHpKgIPVBQkmUNp3q7fMHvnDu/RydR69ljootWlLvYMjMIvvY
+    n68A2qFDW6IHTsQ2oNBh3u4VekJYoeERungigzPnyNdCPF3FcmhnChrMctre2Nca
+    y3qtyjRbzwBaGN+D2Y8CAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgKkMB0GA1UdJQQW
+    MBQGCCsGAQUFBwMCBggrBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3
+    DQEBCwUAA4IBAQAlRbC/btl/cWz/uo/sme2E0Xak4Qmypm/0PGlMX5nrHWK4xQNW
+    sA4BcVelBZrkAviB4yMTNoIoHbtI+o8BtQtcs2FB5Tj1cL78eBdOZzIlgjWzvsOK
+    BwCyu9JWTr3EULmDbSS5Ng7YiLLfIyVAjfPHp1UPe+vY20lzs+jYw6Hed3AtxE1O
+    4ef55dlHo5zFKdf0E9duIJroCdYBCcPMgYNODfHAg8IwqKdizGx7AKVHgjB04wyJ
+    7tx06m+geSl5O74jr35CVpKeP/s+0VYyE/M8Pue2kZZJkYrUoDyeMG8MIasoSnVk
+    HbNg3YK2q6x2hQNfCSVOktIBnEcBrMcduWYP
+    -----END CERTIFICATE-----
+
+
+
+  tls.key: |
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEpAIBAAKCAQEAxowUfrIapQbmNZloj4lW37MQ170lqV9KKvHYpVmi4y8vFU3F
+    lPWj4OWdEeK9aR55uvhYtWqvIAYg3EYMnvLCVMOKRz0hg4SXrgoYLbhdsjJVlC1+
+    xVh1eqhGozaDSM193OZ3kveFzSyWjWXDzDwh0be29tjfxNMTORJbNAnexc8tMANI
+    7JCH3uvJUwqUnpOGa9kGn0JAeoR6b6C9fwRmEoa1BxofVOaLS8Wj53XKh5pYtL8L
+    OSt+jgZhD6PJp9W2t/tmHbwbBpX0iFu12kZ5SGJvIo7m2FVb5KabGsSzMnjhAh+D
+    8HODY+HM8zOSHXO5v/trStWYSbbAXyU9HnUJIQIDAQABAoIBACWz4gxxC8g8uCiD
+    eiyPmvSdz1v4ahdwpefjxw0XKWxUwG8eNp/jyXvifmIwGWHFzL3pfQbuPFUrdL//
+    eVQRqz9nZnHCtQOBgUAmYJMGCJzXHBMoVINrGdvx6oAB0QpZI0Z4aUp6QGlGx0wQ
+    gA7feFiXt2HGqy94GZVj2/fUy/3p1MT0RW0+DMxAGA84xrv0kUV/UCtaWoQV9mne
+    dqcJWYqO9xIq8Pa6yOMr52+YdiHdIjRfJlxBqf8BMLjUZXYmXPSzhakH9l3ZWsVY
+    0mwj8D8q5eoR5kFLeWQc/deVEFdXBWXpBYdRFBmWsYUnEVnpG0nhdGW2JpaSt6O6
+    TjXeJ3ECgYEA8lMgfHLYFPr5lXHoZSIsZndr3fz2NyErvgXCIXIvaisgSDsofUro
+    4yFIwP/+Drd1c/95pz93nrkHkkWgCxkeC6GWmWzux3RCReAEar+Dy+Ju9xFR+3IE
+    HguBUOcTKuW3/MAUIbVmTyLs1CE9AiXHN3qJWIqXsnP8sH0yyrElWD0CgYEA0cB/
+    b3HvXwigI/jQRk3dus7qEdlFb6MaRg3mvqj2S90Fqz75Utlt1fTydHNpN2ohJe1B
+    tsNqo1yNGYA0iBia7duntT/bbfzt0y0nD24lWJq7ZGHLwSTTj+7cOWzXHccEY4y6
+    NBWEuxRny1eJMv09Mp9dVRulVzmm7VXndq54nrUCgYEAjdGOmqbPxX+YoBjZDI8y
+    cwmDLJkGM/+KzRwroE1maHky3HMa4DD+GSd6n9FyC4TdDXU/6lzfkhnxz25GGxip
+    F9+K9uHk4QAuZRyVGTBaXvF3RctyMnlo5XiQRxvlgN6OjjKP1aaHaNskxYVqYh5f
+    +B0T0qjR3RO6mEO9fRitpXUCgYAPnLJfiy1z92JkCwsFkJomY2xMs81VR+CWwkYg
+    ftcGQoc/fcp0/jYMrNS3EjgMpdudxREVF2qCikr+UOqYDqzJc4YCGaSthRv2ke/M
+    WDhzZeD40cams6UDm5XMuGsyjjOnbTwW0Fs2yYgIPJW7s9mwQOhjg1FFMsdX9wLp
+    dIcJ2QKBgQC+jYfhJ0qTSF+C63eOzqV1Ym276LU8UzrnJoQNiHlqkNBdkpRcpeGY
+    AnXkbu6ibUEEoiW2tEQhcjsGxNFJx8WWvX4Tudu708npJ8oXzp6MWNEeDDZHxsDy
+    lvP8mxACpt1tpTOBzA3Dvt7OVjkkkPo1PLEuU8XNd2+vJ3K3TD70Ig==
+    -----END RSA PRIVATE KEY-----
+
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dex
+  name: dex
+  namespace: oidc-webhook-authenticator-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dex
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: dex
+    spec:
+      serviceAccountName: dex
+      containers:
+      - image: ghcr.io/dexidp/dex:v2.27.0
+        name: dex
+        command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+        ports:
+        - name: https
+          containerPort: 5556
+        volumeMounts:
+        - name: config
+          mountPath: /etc/dex/cfg
+        - name: tls
+          mountPath: /etc/dex/tls
+      volumes:
+      - name: config
+        configMap:
+          name: dex
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: tls
+        secret:
+          secretName: oidc-webhook-authenticator
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: dex
+  namespace: oidc-webhook-authenticator-system
+data:
+  config.yaml: |
+    issuer: https://control-plane.minikube.internal:31133
+    storage:
+      type: kubernetes
+      config:
+        inCluster: true
+    web:
+      https: 0.0.0.0:5556
+      tlsCert: /etc/dex/tls/tls.crt
+      tlsKey: /etc/dex/tls/tls.key
+    oauth2:
+      skipApprovalScreen: true
+
+    staticClients:
+    - id: oidc-webhook
+      redirectURIs:
+      - http://127.0.0.1:8000
+      - http://127.0.0.1:18000
+      - http://localhost:8000
+      - http://localhost:18000
+      name: oidc-webhook
+      secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+    enablePasswordDB: true
+    staticPasswords:
+    - email: "admin@example.com"
+      # bcrypt hash of the string "password"
+      hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+      username: "admin"
+      userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: oidc-webhook-authenticator-system
+spec:
+  type: NodePort
+  ports:
+  - name: dex
+    port: 5556
+    protocol: TCP
+    nodePort: 31133
+    targetPort: 5556
+  selector:
+    app: dex
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: dex
+  name: dex
+  namespace: oidc-webhook-authenticator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dex
+rules:
+- apiGroups: ["dex.coreos.com"] # API group created by dex
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["create"] # To manage its own resources, dex must be able to create customresourcedefinitions
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dex
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dex
+subjects:
+- kind: ServiceAccount
+  name: dex           # Service account assigned to the dex pod, created above
+  namespace: oidc-webhook-authenticator-system  # The namespace dex is running in

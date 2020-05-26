@@ -1,0 +1,8 @@
+domain: gardener.cloud
+multigroup: true
+repo: github.com/gardener/oidc-webhook-authenticator
+resources:
+- group: authentication
+  kind: OpenIDConnect
+  version: v1alpha1
+version: "2"

@@ -13,22 +13,25 @@ Files:
   go.mod
   go.sum
   VERSION
-Copyright: 2020 SAP SE or an SAP affiliate company and Gardener contributors
+  PROJECT
+Copyright: 2021 SAP SE or an SAP affiliate company and Gardener contributors
 License: Apache-2.0
 
+Files:
+  forked/k8s.io/apiserver/plugin/pkg/authenticator/token/oidc/oidc.go
+Copyright: 2015 The Kubernetes Authors
+License: Apache-2.0
 # --------------------------------------------------
 # documentation
 
 Files:
   CONTRIBUTING.md
   README.md
-Copyright: 2020 SAP SE or an SAP affiliate company and Gardener contributors
+  config/*
+  docs/*
+  cfssl/*
+Copyright: 2021 SAP SE or an SAP affiliate company and Gardener contributors
 License: CC-BY-4.0
 
 # --------------------------------------------------
 # source dependencies
-
-# UNDER CONSTRUCTION
-# Files: vendor/github.com/example/dependency/*
-# Copyright: <copyright statement of dependency>
-# License: <SPDX license identifier of dependency>
