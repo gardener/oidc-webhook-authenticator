@@ -1,0 +1,34 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Gardener <repo name>
+Upstream-Contact: The Gardener project <gardener@googlegroups.com>
+Source: https://github.com/gardener/<repo name>
+
+# --------------------------------------------------
+# source code
+
+Files:
+  .github/*
+  .gitignore
+  CODEOWNERS
+  go.mod
+  go.sum
+  VERSION
+Copyright: 2020 SAP SE or an SAP affiliate company and Gardener contributors
+License: Apache-2.0
+
+# --------------------------------------------------
+# documentation
+
+Files:
+  CONTRIBUTING.md
+  README.md
+Copyright: 2020 SAP SE or an SAP affiliate company and Gardener contributors
+License: CC-BY-4.0
+
+# --------------------------------------------------
+# source dependencies
+
+# UNDER CONSTRUCTION
+# Files: vendor/github.com/example/dependency/*
+# Copyright: <copyright statement of dependency>
+# License: <SPDX license identifier of dependency>
