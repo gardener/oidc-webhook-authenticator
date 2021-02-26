@@ -12,11 +12,14 @@
   - [How it works](#how-it-works)
     - [Registration of a new OpenID Connect provider](#registration-of-a-new-openid-connect-provider)
     - [End-user authentication via new OpenIDConnect IDP](#end-user-authentication-via-new-openidconnect-idp)
+  - [Docker images](#docker-images)
   - [Local development](#local-development)
 
 ## Overview
 
 The OpenID Connect Webhook Authenticator allows Kubernetes cluster administrators to dynamically register new OpenID Connect providers in their clusters to use for kube-apiserver authentication.
+
+> Note: This repository still in `alpha` stage and in active development. It should not be used in production. The API can change without any backwards compatibility.
 
 ## Background
 
@@ -246,6 +249,14 @@ It adds the following extra information, that can be used by custom authorizers 
 An overview of the flow:
 
 ![alt text](docs/authentication.svg "Authentication with OIDC webhook")
+
+## Docker images
+
+Pre-release docker image is available at
+
+```text
+eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-a3ed1a78ba53d56b1f8dd24d0bdf540d1c9246a0
+```
 
 ## Local development
 
