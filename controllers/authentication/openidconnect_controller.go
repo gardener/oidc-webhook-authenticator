@@ -13,14 +13,17 @@ import (
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/gardener/oidc-webhook-authenticator/forked/k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
 	"github.com/go-logr/logr"
+	"golang.org/x/time/rate"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -104,9 +107,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		r.handlers.Delete(req.Name)
 
-		return reconcile.Result{
-			RequeueAfter: time.Second * 10,
-		}, err
+		return reconcile.Result{}, err
 	}
 
 	r.handlers.Store(req.Name, &authenticatorInfo{
@@ -127,7 +128,12 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&authenticationv1alpha1.OpenIDConnect{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 50,
+			RateLimiter: workqueue.NewMaxOfRateLimiter(
+				workqueue.NewItemExponentialFailureRateLimiter(5*time.Second, 10*time.Second),
+				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
+			),
 		}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 

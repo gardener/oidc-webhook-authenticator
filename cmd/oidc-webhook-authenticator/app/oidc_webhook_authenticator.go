@@ -107,7 +107,7 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		MetricsBindAddress: "0",
 		Port:               0,
 		LeaderElection:     false,
-		CertDir:            "/Users/i068969/SAPDevelop/github.com/gardener/oidc-webhook-authenticator/cfssl",
+		CertDir:            "",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
