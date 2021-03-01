@@ -1,0 +1,20 @@
+{
+	"name": "Go",
+	"build": {
+        "dockerfile": "Dockerfile",
+	},
+	"settings": {
+		"terminal.integrated.shell.linux": "/bin/bash",
+        "go.useGoProxyToCheckForToolUpdates": false,
+        "go.toolsManagement.checkForUpdates": "off",
+		"go.useLanguageServer": true,
+		"go.gopath": "/go",
+		"go.goroot": "/usr/local/go",
+		"go.toolsGopath": "/go/bin"
+
+	},
+	"extensions": [
+		"golang.Go"
+	],
+	"remoteUser": "vscode"
+}
