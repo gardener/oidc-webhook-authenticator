@@ -255,6 +255,7 @@ An overview of the flow:
 Pre-release docker image is available at
 
 ```text
+eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:latest
 eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-18eb190a4704e97cf995f33c3fa6b65e1a973358
 ```
 
