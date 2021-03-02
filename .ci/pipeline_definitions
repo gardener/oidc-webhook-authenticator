@@ -24,6 +24,10 @@ oidc-webhook-authenticator:
       traits:
         component_descriptor: ~
         draft_release: ~
+        publish:
+          dockerimages:
+            oidc-webhook-authenticator:
+              tag_as_latest: true
     pull-request:
       traits:
         pull-request: ~
@@ -38,4 +42,4 @@ oidc-webhook-authenticator:
         publish:
           dockerimages:
             oidc-webhook-authenticator:
-              tag_as_latest: true
+              tag_as_latest: false

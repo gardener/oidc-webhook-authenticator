@@ -255,7 +255,7 @@ An overview of the flow:
 Pre-release docker image is available at
 
 ```text
-eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-a3ed1a78ba53d56b1f8dd24d0bdf540d1c9246a0
+eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-18eb190a4704e97cf995f33c3fa6b65e1a973358
 ```
 
 ## Local development
@@ -341,7 +341,7 @@ Wait a bit (the kube-apiserver caches the authentication response for `10s`) and
 
 ```shell
 kubectl get pods
-Error from server (Forbidden): pods is forbidden: User "test-admin@example.com" cannot list resource "pods" in API group "" in the namespace "default"
+Error from server (Forbidden): pods is forbidden: User "dex/admin@example.com" cannot list resource "pods" in API group "" in the namespace "default"
 ```
 
 You have successfully authenticated (you can add some RBAC rules to allow that user to perform some operations).
