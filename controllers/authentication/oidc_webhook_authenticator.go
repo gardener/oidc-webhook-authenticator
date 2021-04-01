@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package authentication
 
 import (
 	"context"
@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
-	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -115,7 +114,7 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		return err
 	}
 
-	authReconciler := &authcontroller.OpenIDConnectReconciler{
+	authReconciler := &OpenIDConnectReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("OpenIDConnect"),
 		Scheme: mgr.GetScheme(),
