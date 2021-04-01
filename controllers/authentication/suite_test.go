@@ -28,10 +28,6 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testCtx, testCancel = context.WithCancel(context.Background())
-var (
-	mutatingWebhookPath   = "/webhooks/mutating"
-	validatingWebhookPath = "/webhooks/validating"
-)
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -43,91 +39,11 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
-	//	Expect(os.Setenv("KUBEBUILDER_ASSETS", "/usr/local/kubebuilder/bin")).To(Succeed())
 
 	By("bootstrapping test environment")
 
-	//	failPolicy := admissionregistrationv1.Fail
-	//	sideEffects := admissionregistrationv1.SideEffectClassNone
-	/*	webhookInstallOptions := envtest.WebhookInstallOptions{
-		_ := envtest.WebhookInstallOptions{
-			MutatingWebhooks: []client.Object{
-				&admissionregistrationv1.MutatingWebhookConfiguration{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "mutating-webhook-configuration",
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "MutatingWebhookConfiguration",
-						APIVersion: "admissionregistration.k8s.io/v1",
-					},
-					Webhooks: []admissionregistrationv1.MutatingWebhook{
-						{
-							Name:                    "mutating-webhook-configuration",
-							AdmissionReviewVersions: []string{"v1", "v1beta1"},
-							FailurePolicy:           &failPolicy,
-							ClientConfig: admissionregistrationv1.WebhookClientConfig{
-								Service: &admissionregistrationv1.ServiceReference{
-									Name:      "webhook-service",
-									Namespace: "system",
-									Path:      &mutatingWebhookPath,
-								},
-							},
-							Rules: []admissionregistrationv1.RuleWithOperations{
-								{
-									Operations: []admissionregistrationv1.OperationType{
-										admissionregistrationv1.Create,
-										admissionregistrationv1.Update,
-									},
-									Rule: admissionregistrationv1.Rule{
-										APIGroups:   []string{"authentication.gardener.cloud"},
-										APIVersions: []string{"v1alpha1"},
-										Resources:   []string{"openidconnects"},
-									},
-								},
-							},
-							SideEffects: &sideEffects,
-						},
-						{
-							Name:                    "validating-webhook-configuration",
-							AdmissionReviewVersions: []string{"v1", "v1beta1"},
-							FailurePolicy:           &failPolicy,
-							ClientConfig: admissionregistrationv1.WebhookClientConfig{
-								Service: &admissionregistrationv1.ServiceReference{
-									Name:      "webhook-service",
-									Namespace: "system",
-									Path:      &validatingWebhookPath,
-								},
-							},
-							Rules: []admissionregistrationv1.RuleWithOperations{
-								{
-									Operations: []admissionregistrationv1.OperationType{
-										admissionregistrationv1.Create,
-										admissionregistrationv1.Update,
-									},
-									Rule: admissionregistrationv1.Rule{
-										APIGroups:   []string{"authentication.gardener.cloud"},
-										APIVersions: []string{"v1alpha1"},
-										Resources:   []string{"openidconnects"},
-									},
-								},
-							},
-							SideEffects: &sideEffects,
-						},
-					},
-				},
-			},
-		}
-	*/
-	//	customApiServerFlags := []string{
-	//		"--authentication-token-webhook-config-file=/etc/kubernetes/webhook/minikube-webhook-kubeconfig.yaml",
-	//	}
-	apiServerFlags := append([]string(nil), envtest.DefaultKubeAPIServerFlags...)
-	//	apiServerFlags = append(apiServerFlags, customApiServerFlags...)
-
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:  []string{filepath.Join("..", "config", "crd", "bases")},
-		KubeAPIServerFlags: apiServerFlags,
-		//		WebhookInstallOptions: webhookInstallOptions,
+		CRDDirectoryPaths: []string{filepath.Join("..", "..", "config", "crd", "bases")},
 	}
 
 	cfg, err := testEnv.Start()
@@ -138,13 +54,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
-	//	cmd := NewOIDCWebhookAuthenticatorCommand(ctrl.SetupSignalHandler())
-
-	//	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
-	// utilflag.InitFlags()
-	//	logs.InitLogs()
-	//	defer logs.FlushLogs()
-	//	err = cmd.Execute()
 	//	Expect(err).NotTo(HaveOccurred())
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
