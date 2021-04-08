@@ -65,3 +65,6 @@ docker-push: ## Push docker image with the manager.
 
 tools-image:
 	docker build --target=tools -f dev.Dockerfile -t tools:latest .
+
+test:
+	go test ./... -v count=1
