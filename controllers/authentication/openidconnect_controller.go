@@ -11,7 +11,6 @@ import (
 	"time"
 
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
-	"github.com/gardener/oidc-webhook-authenticator/forked/k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
 	"github.com/go-logr/logr"
 	"golang.org/x/time/rate"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
+	"k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,7 +68,16 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		algs = append(algs, string(alg))
 	}
 
+	var caBundle dynamiccertificates.CAContentProvider
+	if config.Spec.CABundle != nil {
+		caBundle, err = dynamiccertificates.NewStaticCAContent("CABundle", config.Spec.CABundle)
+		if err != nil {
+			log.Error(err, "Invalid CABundle")
+		}
+	}
+
 	opts := oidc.Options{
+		CAContentProvider:    caBundle,
 		ClientID:             config.Spec.ClientID,
 		IssuerURL:            config.Spec.IssuerURL,
 		RequiredClaims:       config.Spec.RequiredClaims,
@@ -98,12 +108,10 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		opts.UsernamePrefix = config.Name + "/"
 	}
 
-	auth, err := oidc.NewForkedAuthenticator(oidc.OptionsForked{
-		CA:      config.Spec.CABundle,
-		Options: opts,
-	})
+	auth, err := oidc.New(opts)
+
 	if err != nil {
-		log.Info("Invalid OIDC authenticator, removing it from store")
+		log.Error(err, "Invalid OIDC authenticator, removing it from store")
 
 		r.handlers.Delete(req.Name)
 
