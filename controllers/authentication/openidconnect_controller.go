@@ -6,12 +6,21 @@ package authentication
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"mime"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	gooidc "github.com/coreos/go-oidc"
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/go-logr/logr"
+	"golang.org/x/oauth2"
 	"golang.org/x/time/rate"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -72,13 +81,21 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if config.Spec.CABundle != nil {
 		caBundle, err = dynamiccertificates.NewStaticCAContent("CABundle", config.Spec.CABundle)
 		if err != nil {
-			log.Error(err, "Invalid CABundle")
+			log.Info("Invalid CABundle")
 		}
+	}
+
+	// retrieve the JWKS keySet from the jwksURL endpoint
+	var keySet gooidc.KeySet
+	keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
+	if err != nil {
+		log.Info("Invalid JWKS KeySet")
 	}
 
 	opts := oidc.Options{
 		CAContentProvider:    caBundle,
 		ClientID:             config.Spec.ClientID,
+		KeySet:               keySet,
 		IssuerURL:            config.Spec.IssuerURL,
 		RequiredClaims:       config.Spec.RequiredClaims,
 		SupportedSigningAlgs: algs,
@@ -211,4 +228,80 @@ type authenticatorInfo struct {
 	authenticator.Token
 	name string
 	uid  types.UID
+}
+
+type providerJSON struct {
+	Issuer      string   `json:"issuer"`
+	AuthURL     string   `json:"authorization_endpoint"`
+	TokenURL    string   `json:"token_endpoint"`
+	JWKSURL     string   `json:"jwks_uri"`
+	UserInfoURL string   `json:"userinfo_endpoint"`
+	Algorithms  []string `json:"id_token_signing_alg_values_supported"`
+}
+
+func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
+
+	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
+
+	req, err := http.NewRequest("GET", wellKnown, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := doRequest(ctx, req, cabundle)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %s", resp.Status, body)
+	}
+
+	var p providerJSON
+	err = unmarshalResp(resp, body, &p)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: failed to decode provider discovery object: %v", err)
+	}
+
+	if p.Issuer != issuer {
+		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider,   expected %q got %q", issuer, p.Issuer)
+	}
+	return gooidc.NewRemoteKeySet(ctx, p.JWKSURL), nil
+
+}
+
+func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
+	err := json.Unmarshal(body, &v)
+	if err == nil {
+		return nil
+	}
+	ct := r.Header.Get("Content-Type")
+	mediaType, _, parseErr := mime.ParseMediaType(ct)
+	if parseErr == nil && mediaType == "application/json" {
+		return fmt.Errorf("got Content-Type = application/json, but could   not unmarshal as JSON: %v", err)
+	}
+	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
+}
+
+func doRequest(ctx context.Context, req *http.Request, cabundle []byte) (*http.Response, error) {
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(cabundle)
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+	}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   10 * time.Second,
+	}
+
+	if c, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		client = c
+	}
+	return client.Do(req.WithContext(ctx))
 }
