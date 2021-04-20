@@ -20,11 +20,11 @@ import (
 	gooidc "github.com/coreos/go-oidc"
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/go-logr/logr"
-	"golang.org/x/oauth2"
 	"golang.org/x/time/rate"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
@@ -90,6 +90,10 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
 	if err != nil {
 		log.Info("Invalid JWKS KeySet")
+
+		r.handlers.Delete(req.Name)
+
+		return reconcile.Result{}, err
 	}
 
 	opts := oidc.Options{
@@ -243,11 +247,24 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 
+	caCertPool := x509.NewCertPool()
+	if cabundle != nil {
+		caCertPool.AppendCertsFromPEM(cabundle)
+	}
+
+	tr := net.SetTransportDefaults(&http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+	})
+
+	client := &http.Client{Transport: tr, Timeout: 30 * time.Second}
+
+	ctx = gooidc.ClientContext(ctx, client)
+
 	req, err := http.NewRequest("GET", wellKnown, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := doRequest(ctx, req, cabundle)
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -286,22 +303,4 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 		return fmt.Errorf("got Content-Type = application/json, but could   not unmarshal as JSON: %v", err)
 	}
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
-}
-
-func doRequest(ctx context.Context, req *http.Request, cabundle []byte) (*http.Response, error) {
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(cabundle)
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{RootCAs: caCertPool},
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   10 * time.Second,
-	}
-
-	if c, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		client = c
-	}
-	return client.Do(req.WithContext(ctx))
 }

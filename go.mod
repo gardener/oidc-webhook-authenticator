@@ -9,7 +9,6 @@ require (
 	github.com/onsi/gomega v1.10.5
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	k8s.io/api v0.21.0
