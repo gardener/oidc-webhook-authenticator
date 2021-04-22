@@ -37,6 +37,7 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 
 var user1 = &user.DefaultInfo{Name: "fresh_ferret", UID: "alfa"}
 var user2 = &user.DefaultInfo{Name: "elegant_sheep", UID: "bravo"}
+var server *httptest.Server
 
 var _ = Describe("OpenIDConnect controller", func() {
 
@@ -134,27 +135,31 @@ var _ = Describe("OpenIDConnect controller", func() {
 			})
 		})
 	})
+	BeforeEach(func() {
+		server = testIDPServer()
+	})
+
+	AfterEach(func() {
+		server.Close()
+	})
+
 	Describe("retrieving the JWKS key Set", func() {
 		Context("request to IDP server without valid CA certificate", func() {
 			It("request should fail", func() {
-
-				issuerURL := testIDPServer()
 				ctx := context.Background()
-				keySet, err := remoteKeySet(ctx, issuerURL, nil)
+				keySet, err := remoteKeySet(ctx, server.URL, nil)
 				Expect(strings.Contains(err.Error(), "x509: certificate signed by unknown authority")).To(BeTrue())
 				Expect(keySet).To(BeNil())
 			})
 		})
 		Context("request to IDP server with valid CA certificate", func() {
 			It("request should succeed", func() {
-
-				issuerURL := testIDPServer()
 				caCert, err := ioutil.ReadFile("../../cfssl/ca.crt")
 				Expect(err).NotTo(HaveOccurred())
 				ctx := context.Background()
-				keySet, err := remoteKeySet(ctx, issuerURL, caCert)
+				keySet, err := remoteKeySet(ctx, server.URL, caCert)
 				keySetString := fmt.Sprintf("%#v", keySet)
-				Expect(strings.Contains(keySetString, issuerURL)).To(BeTrue())
+				Expect(strings.Contains(keySetString, server.URL)).To(BeTrue())
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -175,7 +180,7 @@ func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) unionAuthTo
 	return union
 }
 
-func testIDPServer() string {
+func testIDPServer() *httptest.Server {
 	newMux := http.NewServeMux()
 	server := httptest.NewUnstartedServer(newMux)
 	cert, err := tls.LoadX509KeyPair("../../cfssl/tls.crt", "../../cfssl/tls.key")
@@ -226,5 +231,5 @@ func testIDPServer() string {
 			w.WriteHeader(500)
 		}
 	})
-	return server.URL
+	return server
 }
