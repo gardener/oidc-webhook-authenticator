@@ -177,7 +177,6 @@ func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) unionAuthTo
 
 func testIDPServer() string {
 	newMux := http.NewServeMux()
-	//	server := httptest.NewServer(newMux)
 	server := httptest.NewUnstartedServer(newMux)
 	cert, err := tls.LoadX509KeyPair("../../cfssl/tls.crt", "../../cfssl/tls.key")
 	Expect(err).NotTo(HaveOccurred())
@@ -227,6 +226,5 @@ func testIDPServer() string {
 			w.WriteHeader(500)
 		}
 	})
-	//	t.Cleanup(server.Close)
 	return server.URL
 }

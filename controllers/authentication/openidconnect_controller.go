@@ -85,7 +85,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 			r.handlers.Delete(req.Name)
 
-			return reconcile.Result{}, err
+			return reconcile.Result{}, nil
 		}
 	}
 
@@ -97,7 +97,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		r.handlers.Delete(req.Name)
 
-		return reconcile.Result{}, err
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	opts := oidc.Options{
