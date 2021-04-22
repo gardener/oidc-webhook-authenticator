@@ -82,6 +82,10 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		caBundle, err = dynamiccertificates.NewStaticCAContent("CABundle", config.Spec.CABundle)
 		if err != nil {
 			log.Info("Invalid CABundle")
+
+			r.handlers.Delete(req.Name)
+
+			return reconcile.Result{}, err
 		}
 	}
 
