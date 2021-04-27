@@ -98,6 +98,16 @@ spec:
                   discovery. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig"
                 pattern: ^https:\/\/
                 type: string
+              jwks:
+                description: JWKS if specified, provides an option to specify JWKS
+                  keys offline.
+                properties:
+                  distributedClaims:
+                    type: boolean
+                  keys:
+                    format: byte
+                    type: string
+                type: object
               requiredClaims:
                 additionalProperties:
                   type: string

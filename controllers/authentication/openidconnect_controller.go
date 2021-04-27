@@ -21,6 +21,7 @@ import (
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/go-logr/logr"
 	"golang.org/x/time/rate"
+	jose "gopkg.in/square/go-jose.v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -89,13 +90,27 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// retrieve the JWKS keySet from the jwksURL endpoint
 	var keySet gooidc.KeySet
-	keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
-	if err != nil {
-		log.Error(err, "Invalid JWKS KeySet")
 
-		r.handlers.Delete(req.Name)
+	if len(config.Spec.JWKS.Keys) != 0 {
+		keySet, err = newStaticKeySet(config.Spec.JWKS.Keys)
+		if err != nil {
+			log.Error(err, "Invalid static JWKS KeySet")
+
+			r.handlers.Delete(req.Name)
+
+			// can't do anything until spec is changed
+			return reconcile.Result{}, nil
+		}
+
+	} else {
+		// retrieve the JWKS keySet from the jwksURL endpoint
+		keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
+		if err != nil {
+			log.Error(err, "Invalid remote JWKS KeySet")
+
+			r.handlers.Delete(req.Name)
+		}
 
 		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
@@ -247,6 +262,30 @@ type providerJSON struct {
 	Algorithms  []string `json:"id_token_signing_alg_values_supported"`
 }
 
+// staticKeySet implements gooidc.KeySet.
+type staticKeySet struct {
+	keys []jose.JSONWebKey
+}
+
+func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+	jws, err := jose.ParseSigned(jwt)
+	if err != nil {
+		return nil, err
+	}
+	if len(jws.Signatures) == 0 {
+		return nil, fmt.Errorf("jwt contained no signatures")
+	}
+	kid := jws.Signatures[0].Header.KeyID
+
+	for _, key := range s.keys {
+		if key.KeyID == kid {
+			return jws.Verify(key)
+		}
+	}
+
+	return nil, fmt.Errorf("no keys matches jwk keyid")
+}
+
 func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
 
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
@@ -296,6 +335,16 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 
 }
 
+func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
+
+	pubKeys, err := loadKey(jwks)
+	if err != nil {
+		return nil, err
+	}
+
+	return &staticKeySet{keys: pubKeys}, nil
+}
+
 func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 	err := json.Unmarshal(body, &v)
 	if err == nil {
@@ -307,4 +356,21 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 		return fmt.Errorf("got Content-Type = application/json, but could   not unmarshal as JSON: %v", err)
 	}
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
+}
+
+// loadKey parses the jwks key Set, and returns the available keys.
+func loadKey(jwks []byte) ([]jose.JSONWebKey, error) {
+	var keyList []jose.JSONWebKey
+	keySet := jose.JSONWebKeySet{}
+
+	err := json.Unmarshal(jwks, &keySet)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, k := range keySet.Keys {
+		keyList = append(keyList, k)
+	}
+
+	return keyList, nil
 }

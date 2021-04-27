@@ -38,6 +38,45 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 var user1 = &user.DefaultInfo{Name: "fresh_ferret", UID: "alfa"}
 var user2 = &user.DefaultInfo{Name: "elegant_sheep", UID: "bravo"}
 var server *httptest.Server
+var payloadString = `{"iss":"https://control-plane.minikube.internal:31133","sub":"CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs","aud":"oidc-webhook","exp":1620082901,"iat":1619996501,"nonce":"5tBc_OEvRo0rQd1Of5blBw5iamNQSP08_YfS3Nn64qw","at_hash":"KNgnpzE_KIS60exlG8aRhA","email":"admin@example.com","email_verified":true,"name":"admin"}`
+var jwtValid = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwYmUyZWMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.NkAeXMioHPeaqDcq-0364m4squnfkLx-jFXsdDBnfQwykSFOIKltisoQ-Eb4VsTQQ-fS0crkBWuKoEj_TAK3MHOZ9tqkm8NLNpDwxIiz3B81Se8tBoRqM33n_jjl3tE_Ho8-eJj2u4i3JIJ3_25RmcR-jjCIX-JWqs_yM3mh7vh3kNeTsIpoSAjzIcgbvTHZOqTrjJbmMUp72fDGdariEfiumoLtQ4LyHIpIcFpKAIDuoTbAyWwaIlXZHmPGmgkFEgZNiWlF5V8XX9e_RsTdXLI6d16jxczViPVH7FumTn7U9Lx9YiEZwDMN5X7Ym8ZnuTTDFrBXQwhDlV_yIIN0yg"
+var jwtInvalid = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwZmQzMiJ9.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.JYPysQVYHkE_ArZ9JHQCRfCJ4pPb4WYl5GZAi7PjNmJ7SfqS-MMLuBxDOnDiypWVYHYijTRsHYVBPx2HKijiNomAPwLswZFZcjjcSqGksnhS1XbLQYHM-rl3M6n31d2ILTDwi5gPXOpzYl1b_OcxngVLDs1u_6Gg1hhD6dSfAJyL4NTzKkC0VVTO1VIFNWVVziGexyVG_rPNQngyOxLj3liATJ6l3fEDl4giDwv3IIUkIyhIiymYYIKCoxf28wtUBvjkfavOuHYtqZ2Z6BL5qhxjbNtjXXLUppMY4MJBG47t9mp6OyxyGcGWZySoJcH5BaYyvALWQWxeIaClOyh2LdWiG57qUkoYSZOD8OYp_gyGgG7Rk7zsjwRkZkujx5uc88blpE3bGtQ7zGmERt6ETyR69KHGYiWEZDxWwP6YlBXJ0K4NKV-7gfcobvZRg-GdKToLTA0pvGA0mbdZUvAvjZ5aU10ydsd4cUFGMzlMI0wyyJYf9VzM85VSCQvgQJ0PH0zfPFH_A5DsU6Y7Aozismq17xdFugqIKmsKlrhtU90voUjRLYOUQWTGpiI8E7EIYgHYTLB-x4ob6YgXEjZEBuzpZSmuLw6tfnSN3BM6JUixdt1auRVtAHrWFrji0EGO_CSgr0yYH9qoZ1aSz_P0UEBSAQY2NkR6CM25a4_nIJ8"
+var jwksdata = `{
+  "keys": [
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "d9e0c07925d54dcc51bbc5bab0d571f23b0be2ec",
+      "alg": "RS256",
+      "n": "sx8JV3TjVZ1AaRUSaJEvikz-ZV_p5KB4dX7DHW7qdtNVTnwMtzW0vFHS43PBow_kfGJhiqi5ccnu9MecSS8dRTZ4lAkZomlPDZKQxocC1lPRHZD3bKj0kbLaKOBPJ2VHSnrZsrN3GfR8qhluX1aPe2hfTIiqxjV9y7ZLFFMBoMKDDaI2IncNAJXVPz18pymWiLcQbr_M9FZ8OimvzbslZ3A3JD2-vgmmSmeEz3avHruJmmH3nKqM5CSWKOEH8S4I0z9wHn87JWA803_wq49h7O_y2ybiNzDp0gtlP2UuGV_rneUp3v_Xh0J13jcKPZBKm_Q6C8tGdvWCUyCC8r7LpQ",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "ab9087a5d0554b63a8382e876056fc5c55498952",
+      "alg": "RS256",
+      "n": "yPEgUfxQTcIS48IMSqO7VB9QnsNqUhNQI-OBkRnN3raDxvsWTRVjVa7UJIg4OVwRYIoANpCau_iAfrbRCZMrRHGboUVqMXc1vP1hj_ccezkE5DWjAmfza9jLnCbgUV76p7d_DdKgyUTzCDgLN07VLbZyxyAVsXJ8x1_pv8CT0v4hsAQ93ER3NBJ1-_narfygEJKCmI91AuTF3YzbOai2Cd-ZXlkOShMhJKaKP96uawpfE2mreUMQ2Ff9wh73mLMOZ5LSfD29qonduP3thU0Xp7V23ErrMa1Z_2FJhKuH1EQ0RpBRIUekk5cQqPz5zYGlsaKJv9t6UaEQigdvShjK7w",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "c509400bcc0256750753bbea8d46ee5f27016957",
+      "alg": "RS256",
+      "n": "2e61tRW9IfGpAmqrqyZS15EDFm1bjlwRq6J5RTYGnBcflQGpgnPhc7RjaA7PgpULFAZjq8UWzn33jTUVOGLEiF72Vc7cWiDhn_MrEcHUTP1XGTtCNKP18c92PhqWuRzTHeJZYvBZBynwrW-4Wfnti_uomVc85-JT_POB0EZfA6thTi9c_5G2wLv56k3WDkVsm8vbPzXFtTI5SDdXKe19GDbeXFhV96z3wtthSTST7M7MwVW-Dy18ll6gvxQgaUf5OGhx-HjiThTvfkfGIgYqHmDb8d9DDbUs4R6RijU3Docj7AWYgF0_A5deiW4lt0s5ZRBCtK3IMM9SoMkPyfm4_w",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "9c94d9f1899ca25d03473357814b6c3107e28ac3",
+      "alg": "RS256",
+      "n": "1wXiR7uaZ0svadMYZZulKOWmadFTUt1ul9UrEm5hpCc2TbOnEqaQDStsdYMC9k8hEPTwtEPZFUSxTdYYNnEN8HcF_TWDODx_GO__3NMtuaru65It6v33_rLp9P_Ij9f-UlFg13JImsWqNDT0NALe7eiUjUtPrjWIdWY9SA6Sc5LCVy-1YatvMWUzb_wvo-nOD5XiSzbGu_z_TrvSSm7IRQVv0it-Vu38U3tFKUv6v5vXiBKuLnP49sUToFK480kyd_OwYPclpHCUhznAjF0psQ8as51NiVQpGDsHwAsO6Wd3kfP7tpPpk1ZkJysRC8_aMjRL3seaREE3DiNnQ0RegQ",
+      "e": "AQAB"
+    }
+  ]
+}`
 
 var _ = Describe("OpenIDConnect controller", func() {
 
@@ -132,6 +171,30 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(isAuthenticated).Should(BeFalse())
 
 				Expect(resp).To(BeNil())
+			})
+		})
+	})
+	Describe("Construct a static JWKS key Set", func() {
+		Context("VerifySignature of a valid jwt", func() {
+			It("verification should succeed", func() {
+				staticKeySet, err := newStaticKeySet([]byte(jwksdata))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(staticKeySet).NotTo(BeNil())
+				ctx := context.Background()
+				payload, err := staticKeySet.VerifySignature(ctx, jwtValid)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(payload).Should(Equal([]byte(payloadString)))
+			})
+		})
+		Context("Verify Signature of an invalid jwt", func() {
+			It("verification should fail", func() {
+				staticKeySet, err := newStaticKeySet([]byte(jwksdata))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(staticKeySet).NotTo(BeNil())
+				ctx := context.Background()
+				_, err = staticKeySet.VerifySignature(ctx, jwtInvalid)
+				Expect(err).To(HaveOccurred())
+				Expect(strings.Contains(err.Error(), "no keys matches jwk keyid")).To(BeTrue())
 			})
 		})
 	})

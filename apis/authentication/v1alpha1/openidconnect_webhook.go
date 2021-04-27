@@ -5,9 +5,11 @@
 package v1alpha1
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 
+	"gopkg.in/square/go-jose.v2"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	certutil "k8s.io/client-go/util/cert"
@@ -109,5 +111,19 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 		}
 	}
 
+	if len(r.Spec.JWKS.Keys) > 0 {
+		if err := validateJWKS(r.Spec.JWKS.Keys); err != nil {
+			allErrs = append(allErrs, field.Invalid(field.NewPath("keys"), string(r.Spec.JWKS.Keys), "must be a valid base64 encoded JWKS"))
+		}
+	}
 	return allErrs
+}
+
+func validateJWKS(jwks []byte) error {
+	err := json.Unmarshal(jwks, &jose.JSONWebKeySet{})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
