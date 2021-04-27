@@ -6,9 +6,13 @@ package authentication
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -20,7 +24,9 @@ import (
 	gooidc "github.com/coreos/go-oidc"
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/go-logr/logr"
+	"github.com/lestrrat-go/jwx/jwk"
 	"golang.org/x/time/rate"
+	jose "gopkg.in/square/go-jose.v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -89,15 +95,28 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// retrieve the JWKS keySet from the jwksURL endpoint
 	var keySet gooidc.KeySet
-	keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
-	if err != nil {
-		log.Error(err, "Invalid JWKS KeySet")
 
-		r.handlers.Delete(req.Name)
+	if config.Spec.JWKS.Keys != nil {
+		keySet, err = newStaticKeySet(config.Spec.JWKS.Keys)
+		if err != nil {
+			log.Error(err, "Invalid static JWKS KeySet")
 
-		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+			r.handlers.Delete(req.Name)
+
+			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+
+	} else {
+		// retrieve the JWKS keySet from the jwksURL endpoint
+		keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
+		if err != nil {
+			log.Error(err, "Invalid remote JWKS KeySet")
+
+			r.handlers.Delete(req.Name)
+
+			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 	}
 
 	opts := oidc.Options{
@@ -247,6 +266,30 @@ type providerJSON struct {
 	Algorithms  []string `json:"id_token_signing_alg_values_supported"`
 }
 
+// staticKeySet implements gooidc.KeySet.
+type staticKeySet struct {
+	keys []*jose.JSONWebKey
+}
+
+func (s *staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+	jws, err := jose.ParseSigned(jwt)
+	if err != nil {
+		return nil, err
+	}
+	if len(jws.Signatures) == 0 {
+		return nil, fmt.Errorf("jwt contained no signatures")
+	}
+	kid := jws.Signatures[0].Header.KeyID
+
+	for _, key := range s.keys {
+		if key.KeyID == kid {
+			return jws.Verify(key)
+		}
+	}
+
+	return nil, fmt.Errorf("no keys matches jwk keyid")
+}
+
 func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
 
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
@@ -296,6 +339,14 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 
 }
 
+func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
+
+	pubKeys := []*jose.JSONWebKey{
+		loadRSAKey(jwks, jose.RS256),
+	}
+	return &staticKeySet{keys: pubKeys}, nil
+}
+
 func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 	err := json.Unmarshal(body, &v)
 	if err == nil {
@@ -307,4 +358,57 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 		return fmt.Errorf("got Content-Type = application/json, but could   not unmarshal as JSON: %v", err)
 	}
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
+}
+
+func loadRSAKey(jwks []byte, alg jose.SignatureAlgorithm) *jose.JSONWebKey {
+	return loadKey(jwks, alg, func(b []byte) (interface{}, error) {
+		key, err := x509.ParsePKCS1PrivateKey(b)
+		if err != nil {
+			return nil, err
+		}
+		return key.Public(), nil
+	})
+}
+
+func loadKey(jwks []byte, alg jose.SignatureAlgorithm, unmarshal func([]byte) (interface{}, error)) *jose.JSONWebKey {
+	data, err := base64.StdEncoding.DecodeString(string(jwks))
+	if err != nil {
+		fmt.Println(err)
+	}
+	pubKeyJwk, err := jwk.ParseString(string(data))
+	if err != nil {
+		fmt.Println(err)
+	}
+	k := pubKeyJwk.Keys[0]
+	pubKey, err := k.Materialize()
+	pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		fmt.Println(err, "pubkey_bytes")
+	}
+
+	pubkey_pem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: pubkey_bytes,
+		},
+	)
+
+	block, _ := pem.Decode(pubkey_pem)
+	if block != nil {
+		//TODO
+	}
+
+	priv, err := x509.ParsePKIXPublicKey(block.Bytes)
+	//	priv, err := unmarshal(block.Bytes)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	key := &jose.JSONWebKey{Key: priv, Use: "sig", Algorithm: string(alg)}
+	thumbprint, err := key.Thumbprint(crypto.SHA256)
+	if err != nil {
+		fmt.Println(err)
+	}
+	key.KeyID = hex.EncodeToString(thumbprint)
+	return key
 }

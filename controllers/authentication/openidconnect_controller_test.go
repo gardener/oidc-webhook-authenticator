@@ -38,7 +38,7 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 var user1 = &user.DefaultInfo{Name: "fresh_ferret", UID: "alfa"}
 var user2 = &user.DefaultInfo{Name: "elegant_sheep", UID: "bravo"}
 var server *httptest.Server
-
+var jwksRSAKey = []byte("ewogICAgImt0eSI6ICJSU0EiLAogICAgImUiOiAiQVFBQiIsCiAgICAidXNlIjogInNpZyIsCiAgICAia2lkIjogIkdMQUFZMTdnQTMxcXFDY2NvWmc0ekJoTElsbDZZM2ZNT3ZZMEptVjNsOWMiLAogICAgImFsZyI6ICJSUzI1NiIsCiAgICAibiI6ICJyWkdwSDJ4dG8xMHowSUtmajFmRzBaTUhza2pGcGJRYXFPOUZxcUpGVVloUGFIeXBXYUoxSU5UbWxJYVM4dVd2cTJaUzdNbTNTOVRoM3pXSVVtdk5aUnloSXM1WXNRMHlEdDZkOGN5NVRzRHRHQVdqUDJwVkNXRmI5MVl6VjZ1WU1YdE1PQ1dvY19BeTFPMUlySjhTOFY2ZFY4TXRPc2VTNHlZWXdVWWlHYnE0eGVVenVZVU1FQ3B3Z1lDQ0xQc08zS19RSkhya2U1emRrYWdpMm1SNVV4dXc4TXd3Y3ZNd3VPNnd3WU1PVkFlLXNlZC1uVEkwNGNKTlVHUkJaMWJjUW4zX01nTTFxSnp3RTNSNXNEQVpKU3h0dUN6T3lrd3I2V0kyZTZHUG1IZFJ2WDQ3NDlPNU9zX3BEMGhfbktEMmF4Z0xfVzk3QzdXYl9GUGp3SzgwdFEiCn0=")
 var _ = Describe("OpenIDConnect controller", func() {
 
 	Describe("Authentication with Token Authentication handlers", func() {
@@ -132,6 +132,15 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(isAuthenticated).Should(BeFalse())
 
 				Expect(resp).To(BeNil())
+			})
+		})
+	})
+	Describe("Construct a static JWKS key Set", func() {
+		Context("request to IDP server with valid CA certificate", func() {
+			It("request should succeed", func() {
+				staticKeySet, err := newStaticKeySet(jwksRSAKey)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(staticKeySet).NotTo(BeNil())
 			})
 		})
 	})

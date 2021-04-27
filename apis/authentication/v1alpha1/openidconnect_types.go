@@ -120,12 +120,22 @@ type OIDCAuthenticationSpec struct {
 	// `caBundle` is a PEM encoded CA bundle which will be used to validate the webhook's server certificate.
 	// If unspecified, system trust roots on the apiserver are used.
 	CABundle []byte `json:"caBundle,omitempty"`
+
+	// +optional
+
+	// JWKS if specified, provides an option to specify JWKS keys offline.
+	JWKS JWKSSpec `json:"jwks,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=RS256;RS384;RS512;ES256;ES384;ES512;PS256;PS384;PS512
 
 // SigningAlgorithm is JOSE asymmetric signing algorithm value as defined by RFC 7518
 type SigningAlgorithm string
+
+type JWKSSpec struct {
+	Keys              []byte `json:"keys,omitempty"`
+	DistributedClaims bool   `json:"distributedClaims,omitempty"`
+}
 
 const (
 	// RS256 is RSASSA-PKCS-v1.5 using SHA-256
