@@ -81,7 +81,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if config.Spec.CABundle != nil {
 		caBundle, err = dynamiccertificates.NewStaticCAContent("CABundle", config.Spec.CABundle)
 		if err != nil {
-			log.Info("Invalid CABundle")
+			log.Error(err, "Invalid CABundle")
 
 			r.handlers.Delete(req.Name)
 
@@ -93,7 +93,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	var keySet gooidc.KeySet
 	keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
 	if err != nil {
-		log.Info("Invalid JWKS KeySet")
+		log.Error(err, "Invalid JWKS KeySet")
 
 		r.handlers.Delete(req.Name)
 
