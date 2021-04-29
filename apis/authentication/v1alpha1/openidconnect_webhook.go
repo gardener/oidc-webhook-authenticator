@@ -5,9 +5,11 @@
 package v1alpha1
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 
+	"github.com/lestrrat-go/jwx/jwk"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	certutil "k8s.io/client-go/util/cert"
@@ -109,5 +111,22 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 		}
 	}
 
+	if len(r.Spec.JWKS.Keys) > 0 {
+		if err := validateJWKS(r.Spec.JWKS.Keys); err != nil {
+			allErrs = append(allErrs, field.Invalid(field.NewPath("keys"), string(r.Spec.CABundle), "must be a valid base64 encoded JWKS"))
+		}
+	}
 	return allErrs
+}
+
+func validateJWKS(jwks []byte) error {
+	data, err := base64.StdEncoding.DecodeString(string(jwks))
+	if err != nil {
+		return err
+	}
+	_, err = jwk.ParseString(string(data))
+	if err != nil {
+		fmt.Println(err)
+	}
+	return nil
 }
