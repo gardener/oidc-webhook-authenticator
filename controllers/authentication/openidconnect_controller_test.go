@@ -38,7 +38,51 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 var user1 = &user.DefaultInfo{Name: "fresh_ferret", UID: "alfa"}
 var user2 = &user.DefaultInfo{Name: "elegant_sheep", UID: "bravo"}
 var server *httptest.Server
-var jwksRSAKey = []byte("ewogICAgImt0eSI6ICJSU0EiLAogICAgImUiOiAiQVFBQiIsCiAgICAidXNlIjogInNpZyIsCiAgICAia2lkIjogIkdMQUFZMTdnQTMxcXFDY2NvWmc0ekJoTElsbDZZM2ZNT3ZZMEptVjNsOWMiLAogICAgImFsZyI6ICJSUzI1NiIsCiAgICAibiI6ICJyWkdwSDJ4dG8xMHowSUtmajFmRzBaTUhza2pGcGJRYXFPOUZxcUpGVVloUGFIeXBXYUoxSU5UbWxJYVM4dVd2cTJaUzdNbTNTOVRoM3pXSVVtdk5aUnloSXM1WXNRMHlEdDZkOGN5NVRzRHRHQVdqUDJwVkNXRmI5MVl6VjZ1WU1YdE1PQ1dvY19BeTFPMUlySjhTOFY2ZFY4TXRPc2VTNHlZWXdVWWlHYnE0eGVVenVZVU1FQ3B3Z1lDQ0xQc08zS19RSkhya2U1emRrYWdpMm1SNVV4dXc4TXd3Y3ZNd3VPNnd3WU1PVkFlLXNlZC1uVEkwNGNKTlVHUkJaMWJjUW4zX01nTTFxSnp3RTNSNXNEQVpKU3h0dUN6T3lrd3I2V0kyZTZHUG1IZFJ2WDQ3NDlPNU9zX3BEMGhfbktEMmF4Z0xfVzk3QzdXYl9GUGp3SzgwdFEiCn0=")
+var jwksdata = `{
+  "keys": [
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "5b0a93c3bff25a39db9246d4dfe60d496fd41fa3",
+      "alg": "RS256",
+      "n": "vzquxAk7mmhbX9ZctbFkhFGYGrPBAzoXBNc8CKlGx8KhrEvqJAqDEn1LbKBsWku6kYj_Mtfn9dOkjizJtyWw14649xIbGSsUOSWUwrXwyiql-sQukV3mTPfZTxMjPKLmCH42cUIKm-4H8ANN8bOqRwceR3kg5WRkQaBAUcKmCHij42TTtD2GZuXfO569P40OXHl9b20e3fPcR92J9zXri4N0Y8c62h-sXb8FtH4GCICEMgE6swdRGkzFngoUouIEHCfYc5DgtbTTOgznZ7gFs3YWvgGu2nzm1Lf7JH00i44mNiuMEnIvD_ZNycrYmPHc0-ux_LOgvFtyfnCbiCPM3Q",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "75335fd1ecaacab9afd094e22b8d5d177fdb208d",
+      "alg": "RS256",
+      "n": "0bURUQITUeSDLr-NKMThwvnekDS6A1aF_2M8Ns0dm27q4tf7ykZw0A5sZxyDh-GC793jWQeHbldyfgO258WS32BxJmr5HyfmKvxEJe1rO88IBQqyjJeQ-LFjXIwSceTY-QAytB4zYgzQQCD3LTL7Fuig3kcfRLCtbGqSqHreESuOGUhZwmqZeuktLqWM0oPCN9f3zrbjFfz5y1gA5sLcNcwp1TPWrUSSjdm8hUVTX68_IAmyD_1IPKa-cdeLVM2qT8yhVjfq5T4Zd4qH-e4M_JMcXuGWJaFPRanVZMiN9E6mXqRrMePbUdi1aoCqUwVprVzrTyrNqlWG4UcMIG39xQ",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "f742aa0df758dea9120aa36542f623dc54646189",
+      "alg": "RS256",
+      "n": "1NDLhqr9N3Zof0-N5zbqdGw4YmPsWihElv5MmVJvIfTu-4CDRhIQqd8koafAlwptDLY-xd897sLzahPm28ffdDZKeOHgy0YKCJh7INJX_vxXkjaUBaLddVJcykJIP_nmWPKs_5hoBrP2NImeUcLEfqG2P7OYCm19aEPtjs_WvmubVBu5mlY_8zhlnoRkNL32IGrAyrKezK5gVb-pGhfC5vvIkcaRlWi76YUhPUazUjevLGU-CA2fv_y9kTwd-ryzYSiFEND40R7PncJ1GJm36d-sysuOo9L1osp5ATfJYRZay1ZHwfd7x8SIVOZKIh4AwtyseM5ug4AQk54UHoYUJQ",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "1bd7edb283a8b16adb8cb70723f7e46e650c4d67",
+      "alg": "RS256",
+      "n": "t3Udy4XgsluOYPBNWfyQ6cg7Ta1hD07EpYJAJZFTsiufJiVSw_7xk1sYWaD8aguliKraeSj_fSu1dOwMrduDiIAz6HLq3jqAhQSkmk67FQwkVyrdouCbEEt4p9gUAy4jMgKPE3rh1z9NhlgJpYan-f8AeR8NL_Jk5pqzkKBzsFR-PnfZZKtl65SoxK1C0iEbIMV9gHZl4cysgsSc70ZQm83eiSzNWuKVVEgVG2EDrh_4AJhjLokVGFF6lp1M92EtP-OZ7nBmgRSWaxdML-G0eaoZpe1myo3oxz-m5bpLWigb9GA19GP7LwPyJ_tqMnit02riA7Li_fr_2xbfH0neKw",
+      "e": "AQAB"
+    },
+    {
+      "use": "sig",
+      "kty": "RSA",
+      "kid": "7cb7d3941fe4293b61d7245f072d516be8ddd64e",
+      "alg": "RS256",
+      "n": "q6vCJ6fabtEYvELsX7Zha_LKRO3eWgA2T7pl71EkD7CHSKwpueLxW9SqPllEMgPXKwSXL7i087FUbyYqFsHcj4LZokUyFBKNZvylR3_aHIxsE50QBc5kMRxIK0ILUABxx2qzX-KD4JeIztQ_CqyOMhYJyAutWfTJjSZdMzOd6i8gknnOrbTWa8dG0AXVyN9w3vTMI02RTC3VRetVKFnJ1HMaTAB1KNl9ANOIMCwrN1oImcggf-mdTEar9oisP1hJO5Th0k0_zMUWgXilLOYJGKchSkWGSn3UQacWmLlZk3vuISf189nYRrwaYBhlR2qIHCnuoFRl1F3SrkraOIHtFw",
+      "e": "AQAB"
+    }
+  ]
+}`
+
 var _ = Describe("OpenIDConnect controller", func() {
 
 	Describe("Authentication with Token Authentication handlers", func() {
@@ -138,9 +182,14 @@ var _ = Describe("OpenIDConnect controller", func() {
 	Describe("Construct a static JWKS key Set", func() {
 		Context("request to IDP server with valid CA certificate", func() {
 			It("request should succeed", func() {
-				staticKeySet, err := newStaticKeySet(jwksRSAKey)
+				staticKeySet, err := newStaticKeySet([]byte(jwksdata))
 				Expect(err).NotTo(HaveOccurred())
 				Expect(staticKeySet).NotTo(BeNil())
+				ctx := context.Background()
+				jwt := "eyJhbGciOiJSUzI1NiIsImtpZCI6IjViMGE5M2MzYmZmMjVhMzlkYjkyNDZkNGRmZTYwZDQ5NmZkNDFmYTMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MTk4Nzg2OTMsImlhdCI6MTYxOTc5MjI5Mywibm9uY2UiOiJXZWdhYkJJeTJWV0NKUWpHU3BRbmZrTFlHYzBTdm9oV2dpUkhYMFNxcTlZIiwiYXRfaGFzaCI6Im1hUUlrbzZ3UDNfbk5uRTFfSTZlelEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.YZUkJGnkz_6qONfDNdMzQWYUToB57IuqXpVOBIYuF0AbJ1ZJs6R9fvJRARn2ls6ObEgV6lhsT9ds2D53fAwFN_Q5TW1Ra2qwJGWrpch3p2UQlGk05ksRv9qVm-fJpAYMaBF0mBC0M7fT6ZHC9pfFXG9DxLMSIrwsG_QOOLjPIYO7YweJz5XppcrEwGIQBuI70xlWfWb8SBUHIleEMJHotxpaSuFYeQGKnES-IWsdcnrTN2EOR86wixLhO4UWE998Qj-BvtkP8-k84XVApU0Z6hsErc3IqIMBtw3ljT41JlZEDRI3zbaT46ABNv81D5tZ5rIXV53kb2OXpPzt9581zQ"
+				_, err = staticKeySet.VerifySignature(ctx, jwt)
+
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})

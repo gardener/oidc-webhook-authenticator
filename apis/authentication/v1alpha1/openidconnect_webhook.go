@@ -113,7 +113,7 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 
 	if len(r.Spec.JWKS.Keys) > 0 {
 		if err := validateJWKS(r.Spec.JWKS.Keys); err != nil {
-			allErrs = append(allErrs, field.Invalid(field.NewPath("keys"), string(r.Spec.CABundle), "must be a valid base64 encoded JWKS"))
+			allErrs = append(allErrs, field.Invalid(field.NewPath("keys"), string(r.Spec.JWKS.Keys), "must be a valid base64 encoded JWKS"))
 		}
 	}
 	return allErrs

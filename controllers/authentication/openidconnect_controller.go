@@ -9,7 +9,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -371,11 +370,7 @@ func loadRSAKey(jwks []byte, alg jose.SignatureAlgorithm) *jose.JSONWebKey {
 }
 
 func loadKey(jwks []byte, alg jose.SignatureAlgorithm, unmarshal func([]byte) (interface{}, error)) *jose.JSONWebKey {
-	data, err := base64.StdEncoding.DecodeString(string(jwks))
-	if err != nil {
-		fmt.Println(err)
-	}
-	pubKeyJwk, err := jwk.ParseString(string(data))
+	pubKeyJwk, err := jwk.ParseString(string(jwks))
 	if err != nil {
 		fmt.Println(err)
 	}
