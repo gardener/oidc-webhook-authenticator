@@ -18,7 +18,6 @@ COPY apis/ apis/
 COPY controllers/ controllers/
 COPY cmd/ cmd/
 COPY webhook/ webhook/
-COPY forked/ forked/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
