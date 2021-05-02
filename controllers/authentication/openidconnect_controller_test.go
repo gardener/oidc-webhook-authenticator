@@ -43,41 +43,33 @@ var jwksdata = `{
     {
       "use": "sig",
       "kty": "RSA",
-      "kid": "5b0a93c3bff25a39db9246d4dfe60d496fd41fa3",
+      "kid": "d9e0c07925d54dcc51bbc5bab0d571f23b0be2ec",
       "alg": "RS256",
-      "n": "vzquxAk7mmhbX9ZctbFkhFGYGrPBAzoXBNc8CKlGx8KhrEvqJAqDEn1LbKBsWku6kYj_Mtfn9dOkjizJtyWw14649xIbGSsUOSWUwrXwyiql-sQukV3mTPfZTxMjPKLmCH42cUIKm-4H8ANN8bOqRwceR3kg5WRkQaBAUcKmCHij42TTtD2GZuXfO569P40OXHl9b20e3fPcR92J9zXri4N0Y8c62h-sXb8FtH4GCICEMgE6swdRGkzFngoUouIEHCfYc5DgtbTTOgznZ7gFs3YWvgGu2nzm1Lf7JH00i44mNiuMEnIvD_ZNycrYmPHc0-ux_LOgvFtyfnCbiCPM3Q",
+      "n": "sx8JV3TjVZ1AaRUSaJEvikz-ZV_p5KB4dX7DHW7qdtNVTnwMtzW0vFHS43PBow_kfGJhiqi5ccnu9MecSS8dRTZ4lAkZomlPDZKQxocC1lPRHZD3bKj0kbLaKOBPJ2VHSnrZsrN3GfR8qhluX1aPe2hfTIiqxjV9y7ZLFFMBoMKDDaI2IncNAJXVPz18pymWiLcQbr_M9FZ8OimvzbslZ3A3JD2-vgmmSmeEz3avHruJmmH3nKqM5CSWKOEH8S4I0z9wHn87JWA803_wq49h7O_y2ybiNzDp0gtlP2UuGV_rneUp3v_Xh0J13jcKPZBKm_Q6C8tGdvWCUyCC8r7LpQ",
       "e": "AQAB"
     },
     {
       "use": "sig",
       "kty": "RSA",
-      "kid": "75335fd1ecaacab9afd094e22b8d5d177fdb208d",
+      "kid": "ab9087a5d0554b63a8382e876056fc5c55498952",
       "alg": "RS256",
-      "n": "0bURUQITUeSDLr-NKMThwvnekDS6A1aF_2M8Ns0dm27q4tf7ykZw0A5sZxyDh-GC793jWQeHbldyfgO258WS32BxJmr5HyfmKvxEJe1rO88IBQqyjJeQ-LFjXIwSceTY-QAytB4zYgzQQCD3LTL7Fuig3kcfRLCtbGqSqHreESuOGUhZwmqZeuktLqWM0oPCN9f3zrbjFfz5y1gA5sLcNcwp1TPWrUSSjdm8hUVTX68_IAmyD_1IPKa-cdeLVM2qT8yhVjfq5T4Zd4qH-e4M_JMcXuGWJaFPRanVZMiN9E6mXqRrMePbUdi1aoCqUwVprVzrTyrNqlWG4UcMIG39xQ",
+      "n": "yPEgUfxQTcIS48IMSqO7VB9QnsNqUhNQI-OBkRnN3raDxvsWTRVjVa7UJIg4OVwRYIoANpCau_iAfrbRCZMrRHGboUVqMXc1vP1hj_ccezkE5DWjAmfza9jLnCbgUV76p7d_DdKgyUTzCDgLN07VLbZyxyAVsXJ8x1_pv8CT0v4hsAQ93ER3NBJ1-_narfygEJKCmI91AuTF3YzbOai2Cd-ZXlkOShMhJKaKP96uawpfE2mreUMQ2Ff9wh73mLMOZ5LSfD29qonduP3thU0Xp7V23ErrMa1Z_2FJhKuH1EQ0RpBRIUekk5cQqPz5zYGlsaKJv9t6UaEQigdvShjK7w",
       "e": "AQAB"
     },
     {
       "use": "sig",
       "kty": "RSA",
-      "kid": "f742aa0df758dea9120aa36542f623dc54646189",
+      "kid": "c509400bcc0256750753bbea8d46ee5f27016957",
       "alg": "RS256",
-      "n": "1NDLhqr9N3Zof0-N5zbqdGw4YmPsWihElv5MmVJvIfTu-4CDRhIQqd8koafAlwptDLY-xd897sLzahPm28ffdDZKeOHgy0YKCJh7INJX_vxXkjaUBaLddVJcykJIP_nmWPKs_5hoBrP2NImeUcLEfqG2P7OYCm19aEPtjs_WvmubVBu5mlY_8zhlnoRkNL32IGrAyrKezK5gVb-pGhfC5vvIkcaRlWi76YUhPUazUjevLGU-CA2fv_y9kTwd-ryzYSiFEND40R7PncJ1GJm36d-sysuOo9L1osp5ATfJYRZay1ZHwfd7x8SIVOZKIh4AwtyseM5ug4AQk54UHoYUJQ",
+      "n": "2e61tRW9IfGpAmqrqyZS15EDFm1bjlwRq6J5RTYGnBcflQGpgnPhc7RjaA7PgpULFAZjq8UWzn33jTUVOGLEiF72Vc7cWiDhn_MrEcHUTP1XGTtCNKP18c92PhqWuRzTHeJZYvBZBynwrW-4Wfnti_uomVc85-JT_POB0EZfA6thTi9c_5G2wLv56k3WDkVsm8vbPzXFtTI5SDdXKe19GDbeXFhV96z3wtthSTST7M7MwVW-Dy18ll6gvxQgaUf5OGhx-HjiThTvfkfGIgYqHmDb8d9DDbUs4R6RijU3Docj7AWYgF0_A5deiW4lt0s5ZRBCtK3IMM9SoMkPyfm4_w",
       "e": "AQAB"
     },
     {
       "use": "sig",
       "kty": "RSA",
-      "kid": "1bd7edb283a8b16adb8cb70723f7e46e650c4d67",
+      "kid": "9c94d9f1899ca25d03473357814b6c3107e28ac3",
       "alg": "RS256",
-      "n": "t3Udy4XgsluOYPBNWfyQ6cg7Ta1hD07EpYJAJZFTsiufJiVSw_7xk1sYWaD8aguliKraeSj_fSu1dOwMrduDiIAz6HLq3jqAhQSkmk67FQwkVyrdouCbEEt4p9gUAy4jMgKPE3rh1z9NhlgJpYan-f8AeR8NL_Jk5pqzkKBzsFR-PnfZZKtl65SoxK1C0iEbIMV9gHZl4cysgsSc70ZQm83eiSzNWuKVVEgVG2EDrh_4AJhjLokVGFF6lp1M92EtP-OZ7nBmgRSWaxdML-G0eaoZpe1myo3oxz-m5bpLWigb9GA19GP7LwPyJ_tqMnit02riA7Li_fr_2xbfH0neKw",
-      "e": "AQAB"
-    },
-    {
-      "use": "sig",
-      "kty": "RSA",
-      "kid": "7cb7d3941fe4293b61d7245f072d516be8ddd64e",
-      "alg": "RS256",
-      "n": "q6vCJ6fabtEYvELsX7Zha_LKRO3eWgA2T7pl71EkD7CHSKwpueLxW9SqPllEMgPXKwSXL7i087FUbyYqFsHcj4LZokUyFBKNZvylR3_aHIxsE50QBc5kMRxIK0ILUABxx2qzX-KD4JeIztQ_CqyOMhYJyAutWfTJjSZdMzOd6i8gknnOrbTWa8dG0AXVyN9w3vTMI02RTC3VRetVKFnJ1HMaTAB1KNl9ANOIMCwrN1oImcggf-mdTEar9oisP1hJO5Th0k0_zMUWgXilLOYJGKchSkWGSn3UQacWmLlZk3vuISf189nYRrwaYBhlR2qIHCnuoFRl1F3SrkraOIHtFw",
+      "n": "1wXiR7uaZ0svadMYZZulKOWmadFTUt1ul9UrEm5hpCc2TbOnEqaQDStsdYMC9k8hEPTwtEPZFUSxTdYYNnEN8HcF_TWDODx_GO__3NMtuaru65It6v33_rLp9P_Ij9f-UlFg13JImsWqNDT0NALe7eiUjUtPrjWIdWY9SA6Sc5LCVy-1YatvMWUzb_wvo-nOD5XiSzbGu_z_TrvSSm7IRQVv0it-Vu38U3tFKUv6v5vXiBKuLnP49sUToFK480kyd_OwYPclpHCUhznAjF0psQ8as51NiVQpGDsHwAsO6Wd3kfP7tpPpk1ZkJysRC8_aMjRL3seaREE3DiNnQ0RegQ",
       "e": "AQAB"
     }
   ]
@@ -186,7 +178,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(staticKeySet).NotTo(BeNil())
 				ctx := context.Background()
-				jwt := "eyJhbGciOiJSUzI1NiIsImtpZCI6IjViMGE5M2MzYmZmMjVhMzlkYjkyNDZkNGRmZTYwZDQ5NmZkNDFmYTMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MTk4Nzg2OTMsImlhdCI6MTYxOTc5MjI5Mywibm9uY2UiOiJXZWdhYkJJeTJWV0NKUWpHU3BRbmZrTFlHYzBTdm9oV2dpUkhYMFNxcTlZIiwiYXRfaGFzaCI6Im1hUUlrbzZ3UDNfbk5uRTFfSTZlelEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.YZUkJGnkz_6qONfDNdMzQWYUToB57IuqXpVOBIYuF0AbJ1ZJs6R9fvJRARn2ls6ObEgV6lhsT9ds2D53fAwFN_Q5TW1Ra2qwJGWrpch3p2UQlGk05ksRv9qVm-fJpAYMaBF0mBC0M7fT6ZHC9pfFXG9DxLMSIrwsG_QOOLjPIYO7YweJz5XppcrEwGIQBuI70xlWfWb8SBUHIleEMJHotxpaSuFYeQGKnES-IWsdcnrTN2EOR86wixLhO4UWE998Qj-BvtkP8-k84XVApU0Z6hsErc3IqIMBtw3ljT41JlZEDRI3zbaT46ABNv81D5tZ5rIXV53kb2OXpPzt9581zQ"
+				jwt := "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwYmUyZWMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.NkAeXMioHPeaqDcq-0364m4squnfkLx-jFXsdDBnfQwykSFOIKltisoQ-Eb4VsTQQ-fS0crkBWuKoEj_TAK3MHOZ9tqkm8NLNpDwxIiz3B81Se8tBoRqM33n_jjl3tE_Ho8-eJj2u4i3JIJ3_25RmcR-jjCIX-JWqs_yM3mh7vh3kNeTsIpoSAjzIcgbvTHZOqTrjJbmMUp72fDGdariEfiumoLtQ4LyHIpIcFpKAIDuoTbAyWwaIlXZHmPGmgkFEgZNiWlF5V8XX9e_RsTdXLI6d16jxczViPVH7FumTn7U9Lx9YiEZwDMN5X7Ym8ZnuTTDFrBXQwhDlV_yIIN0yg"
 				_, err = staticKeySet.VerifySignature(ctx, jwt)
 
 				Expect(err).NotTo(HaveOccurred())

@@ -6,10 +6,9 @@ package authentication
 
 import (
 	"context"
-	"crypto"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -279,8 +278,11 @@ func (s *staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload
 		return nil, fmt.Errorf("jwt contained no signatures")
 	}
 	kid := jws.Signatures[0].Header.KeyID
+	fmt.Println(kid, "jwt kid")
+	fmt.Println(len(s.keys), "lenght of keys")
 
 	for _, key := range s.keys {
+		fmt.Println(key.KeyID, "jwks kid")
 		if key.KeyID == kid {
 			return jws.Verify(key)
 		}
@@ -340,9 +342,8 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 
 func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
 
-	pubKeys := []*jose.JSONWebKey{
-		loadRSAKey(jwks, jose.RS256),
-	}
+	pubKeys := loadKey(jwks, jose.RS256)
+
 	return &staticKeySet{keys: pubKeys}, nil
 }
 
@@ -359,51 +360,42 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
 }
 
-func loadRSAKey(jwks []byte, alg jose.SignatureAlgorithm) *jose.JSONWebKey {
-	return loadKey(jwks, alg, func(b []byte) (interface{}, error) {
-		key, err := x509.ParsePKCS1PrivateKey(b)
-		if err != nil {
-			return nil, err
-		}
-		return key.Public(), nil
-	})
-}
-
-func loadKey(jwks []byte, alg jose.SignatureAlgorithm, unmarshal func([]byte) (interface{}, error)) *jose.JSONWebKey {
+func loadKey(jwks []byte, alg jose.SignatureAlgorithm) []*jose.JSONWebKey {
+	var keyList []*jose.JSONWebKey
 	pubKeyJwk, err := jwk.ParseString(string(jwks))
 	if err != nil {
 		fmt.Println(err)
 	}
-	k := pubKeyJwk.Keys[0]
-	pubKey, err := k.Materialize()
-	pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubKey)
-	if err != nil {
-		fmt.Println(err, "pubkey_bytes")
-	}
+	fmt.Println(pubKeyJwk)
+	for _, j := range pubKeyJwk.Keys {
+		pubKey, err := j.Materialize()
+		pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubKey)
+		if err != nil {
+			fmt.Println(err, "pubkey_bytes")
+		}
 
-	pubkey_pem := pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "RSA PUBLIC KEY",
-			Bytes: pubkey_bytes,
-		},
-	)
+		pubkey_pem := pem.EncodeToMemory(
+			&pem.Block{
+				Type:  "RSA PUBLIC KEY",
+				Bytes: pubkey_bytes,
+			},
+		)
 
-	block, _ := pem.Decode(pubkey_pem)
-	if block != nil {
-		//TODO
-	}
+		fmt.Println(string(pubkey_pem))
+		fmt.Println(j.KeyID())
+		fmt.Println(j.Algorithm())
+		block, _ := pem.Decode(pubkey_pem)
+		if block == nil {
+			fmt.Println("block should not be nil")
+		}
 
-	priv, err := x509.ParsePKIXPublicKey(block.Bytes)
-	//	priv, err := unmarshal(block.Bytes)
-	if err != nil {
-		fmt.Println(err)
-	}
+		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			fmt.Println(err)
+		}
 
-	key := &jose.JSONWebKey{Key: priv, Use: "sig", Algorithm: string(alg)}
-	thumbprint, err := key.Thumbprint(crypto.SHA256)
-	if err != nil {
-		fmt.Println(err)
+		rsaPublickey, _ := pub.(*rsa.PublicKey)
+		keyList = append(keyList, &jose.JSONWebKey{Key: rsaPublickey, KeyID: j.KeyID(), Use: "sig", Algorithm: j.Algorithm()})
 	}
-	key.KeyID = hex.EncodeToString(thumbprint)
-	return key
+	return keyList
 }
