@@ -38,6 +38,9 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 var user1 = &user.DefaultInfo{Name: "fresh_ferret", UID: "alfa"}
 var user2 = &user.DefaultInfo{Name: "elegant_sheep", UID: "bravo"}
 var server *httptest.Server
+var payloadString = `{"iss":"https://control-plane.minikube.internal:31133","sub":"CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs","aud":"oidc-webhook","exp":1620082901,"iat":1619996501,"nonce":"5tBc_OEvRo0rQd1Of5blBw5iamNQSP08_YfS3Nn64qw","at_hash":"KNgnpzE_KIS60exlG8aRhA","email":"admin@example.com","email_verified":true,"name":"admin"}`
+var jwtValid = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwYmUyZWMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.NkAeXMioHPeaqDcq-0364m4squnfkLx-jFXsdDBnfQwykSFOIKltisoQ-Eb4VsTQQ-fS0crkBWuKoEj_TAK3MHOZ9tqkm8NLNpDwxIiz3B81Se8tBoRqM33n_jjl3tE_Ho8-eJj2u4i3JIJ3_25RmcR-jjCIX-JWqs_yM3mh7vh3kNeTsIpoSAjzIcgbvTHZOqTrjJbmMUp72fDGdariEfiumoLtQ4LyHIpIcFpKAIDuoTbAyWwaIlXZHmPGmgkFEgZNiWlF5V8XX9e_RsTdXLI6d16jxczViPVH7FumTn7U9Lx9YiEZwDMN5X7Ym8ZnuTTDFrBXQwhDlV_yIIN0yg"
+var jwtInvalid = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwZmQzMiJ9.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.JYPysQVYHkE_ArZ9JHQCRfCJ4pPb4WYl5GZAi7PjNmJ7SfqS-MMLuBxDOnDiypWVYHYijTRsHYVBPx2HKijiNomAPwLswZFZcjjcSqGksnhS1XbLQYHM-rl3M6n31d2ILTDwi5gPXOpzYl1b_OcxngVLDs1u_6Gg1hhD6dSfAJyL4NTzKkC0VVTO1VIFNWVVziGexyVG_rPNQngyOxLj3liATJ6l3fEDl4giDwv3IIUkIyhIiymYYIKCoxf28wtUBvjkfavOuHYtqZ2Z6BL5qhxjbNtjXXLUppMY4MJBG47t9mp6OyxyGcGWZySoJcH5BaYyvALWQWxeIaClOyh2LdWiG57qUkoYSZOD8OYp_gyGgG7Rk7zsjwRkZkujx5uc88blpE3bGtQ7zGmERt6ETyR69KHGYiWEZDxWwP6YlBXJ0K4NKV-7gfcobvZRg-GdKToLTA0pvGA0mbdZUvAvjZ5aU10ydsd4cUFGMzlMI0wyyJYf9VzM85VSCQvgQJ0PH0zfPFH_A5DsU6Y7Aozismq17xdFugqIKmsKlrhtU90voUjRLYOUQWTGpiI8E7EIYgHYTLB-x4ob6YgXEjZEBuzpZSmuLw6tfnSN3BM6JUixdt1auRVtAHrWFrji0EGO_CSgr0yYH9qoZ1aSz_P0UEBSAQY2NkR6CM25a4_nIJ8"
 var jwksdata = `{
   "keys": [
     {
@@ -172,16 +175,26 @@ var _ = Describe("OpenIDConnect controller", func() {
 		})
 	})
 	Describe("Construct a static JWKS key Set", func() {
-		Context("request to IDP server with valid CA certificate", func() {
-			It("request should succeed", func() {
+		Context("VerifySignature of a valid jwt", func() {
+			It("verification should succeed", func() {
 				staticKeySet, err := newStaticKeySet([]byte(jwksdata))
 				Expect(err).NotTo(HaveOccurred())
 				Expect(staticKeySet).NotTo(BeNil())
 				ctx := context.Background()
-				jwt := "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwYmUyZWMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.NkAeXMioHPeaqDcq-0364m4squnfkLx-jFXsdDBnfQwykSFOIKltisoQ-Eb4VsTQQ-fS0crkBWuKoEj_TAK3MHOZ9tqkm8NLNpDwxIiz3B81Se8tBoRqM33n_jjl3tE_Ho8-eJj2u4i3JIJ3_25RmcR-jjCIX-JWqs_yM3mh7vh3kNeTsIpoSAjzIcgbvTHZOqTrjJbmMUp72fDGdariEfiumoLtQ4LyHIpIcFpKAIDuoTbAyWwaIlXZHmPGmgkFEgZNiWlF5V8XX9e_RsTdXLI6d16jxczViPVH7FumTn7U9Lx9YiEZwDMN5X7Ym8ZnuTTDFrBXQwhDlV_yIIN0yg"
-				_, err = staticKeySet.VerifySignature(ctx, jwt)
-
+				payload, err := staticKeySet.VerifySignature(ctx, jwtValid)
 				Expect(err).NotTo(HaveOccurred())
+				Expect(payload).Should(Equal([]byte(payloadString)))
+			})
+		})
+		Context("Verify Signature of an invalid jwt", func() {
+			It("verification should fail", func() {
+				staticKeySet, err := newStaticKeySet([]byte(jwksdata))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(staticKeySet).NotTo(BeNil())
+				ctx := context.Background()
+				_, err = staticKeySet.VerifySignature(ctx, jwtInvalid)
+				Expect(err).To(HaveOccurred())
+				Expect(strings.Contains(err.Error(), "no keys matches jwk keyid")).To(BeTrue())
 			})
 		})
 	})

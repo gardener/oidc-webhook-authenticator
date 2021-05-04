@@ -6,11 +6,9 @@ package authentication
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -278,11 +276,8 @@ func (s *staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload
 		return nil, fmt.Errorf("jwt contained no signatures")
 	}
 	kid := jws.Signatures[0].Header.KeyID
-	fmt.Println(kid, "jwt kid")
-	fmt.Println(len(s.keys), "lenght of keys")
 
 	for _, key := range s.keys {
-		fmt.Println(key.KeyID, "jwks kid")
 		if key.KeyID == kid {
 			return jws.Verify(key)
 		}
@@ -342,7 +337,10 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 
 func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
 
-	pubKeys := loadKey(jwks, jose.RS256)
+	pubKeys, err := loadKey(jwks)
+	if err != nil {
+		return nil, err
+	}
 
 	return &staticKeySet{keys: pubKeys}, nil
 }
@@ -360,42 +358,21 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
 }
 
-func loadKey(jwks []byte, alg jose.SignatureAlgorithm) []*jose.JSONWebKey {
+// loadKey parses the jwks key Set, extracts public rsa keys found and converts them into a JOSE JWK format.
+func loadKey(jwks []byte) ([]*jose.JSONWebKey, error) {
 	var keyList []*jose.JSONWebKey
 	pubKeyJwk, err := jwk.ParseString(string(jwks))
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	fmt.Println(pubKeyJwk)
+
 	for _, j := range pubKeyJwk.Keys {
 		pubKey, err := j.Materialize()
-		pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubKey)
 		if err != nil {
-			fmt.Println(err, "pubkey_bytes")
+			return nil, err
 		}
 
-		pubkey_pem := pem.EncodeToMemory(
-			&pem.Block{
-				Type:  "RSA PUBLIC KEY",
-				Bytes: pubkey_bytes,
-			},
-		)
-
-		fmt.Println(string(pubkey_pem))
-		fmt.Println(j.KeyID())
-		fmt.Println(j.Algorithm())
-		block, _ := pem.Decode(pubkey_pem)
-		if block == nil {
-			fmt.Println("block should not be nil")
-		}
-
-		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		rsaPublickey, _ := pub.(*rsa.PublicKey)
-		keyList = append(keyList, &jose.JSONWebKey{Key: rsaPublickey, KeyID: j.KeyID(), Use: "sig", Algorithm: j.Algorithm()})
+		keyList = append(keyList, &jose.JSONWebKey{Key: pubKey, KeyID: j.KeyID(), Use: "sig", Algorithm: j.Algorithm()})
 	}
-	return keyList
+	return keyList, nil
 }
