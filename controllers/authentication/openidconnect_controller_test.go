@@ -29,6 +29,7 @@ type mockAuthRequestHandler struct {
 	returnUser      user.Info
 	isAuthenticated bool
 	err             error
+	issuerURL       string
 }
 
 func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
@@ -83,11 +84,12 @@ var _ = Describe("OpenIDConnect controller", func() {
 	Describe("Authentication with Token Authentication handlers", func() {
 		Context("First Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
+
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true}
-				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false}
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://invalid"}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeTrue())
@@ -99,11 +101,11 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		Context("Second Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
-				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false}
+				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "https://invalid"}
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeTrue())
@@ -120,7 +122,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler2 := &mockAuthRequestHandler{}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeFalse())
@@ -133,7 +135,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			It("Authentication should fail", func() {
 
 				authRequestHandler := StoreAuthTokenHandler()
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeFalse())
@@ -149,7 +151,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeTrue())
@@ -165,7 +167,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler2 := &mockAuthRequestHandler{err: errors.New("second")}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeFalse())
@@ -174,6 +176,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			})
 		})
 	})
+
 	Describe("Construct a static JWKS key Set", func() {
 		Context("VerifySignature of a valid jwt", func() {
 			It("verification should succeed", func() {
@@ -229,17 +232,23 @@ var _ = Describe("OpenIDConnect controller", func() {
 	})
 })
 
-func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) unionAuthTokenHandler {
+func StoreAuthTokenHandler(authTokenHandlers ...*mockAuthRequestHandler) unionAuthTokenHandler {
 	union := unionAuthTokenHandler{}
+	var defaultIssuerURL string = "https://control-plane.minikube.internal:31133"
+
 	for _, auth := range authTokenHandlers {
 		uuid := uuid.NewUUID()
-		union.handlers.Store(uuid, &authenticatorInfo{
+		if len(auth.issuerURL) == 0 {
+			auth.issuerURL = defaultIssuerURL
+		}
+
+		union.handlers.Store(string(uuid), &authenticatorInfo{
 			Token: auth,
 			name:  string(uuid),
 			uid:   uuid,
 		})
+		union.issuerURL.Store(auth.issuerURL, string(uuid))
 	}
-
 	return union
 }
 

@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -22,6 +23,8 @@ import (
 	"github.com/go-logr/logr"
 	"golang.org/x/time/rate"
 	jose "gopkg.in/square/go-jose.v2"
+
+	"gopkg.in/square/go-jose.v2/jwt"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -61,6 +64,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
 
 			return reconcile.Result{}, nil
 		}
@@ -69,6 +73,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if config.DeletionTimestamp != nil {
 		log.Info("Deletion timestamp present - removing OIDC authenticator")
 		r.handlers.Delete(req.Name)
+		r.issuerURL.Delete(config.Spec.IssuerURL)
 
 		return reconcile.Result{}, nil
 	}
@@ -86,6 +91,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Invalid CABundle")
 
 			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
 
 			return reconcile.Result{}, nil
 		}
@@ -99,6 +105,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Invalid static JWKS KeySet")
 
 			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
 
 			// can't do anything until spec is changed
 			return reconcile.Result{}, nil
@@ -111,9 +118,11 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Invalid remote JWKS KeySet")
 
 			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
 
 			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+
 	}
 
 	opts := oidc.Options{
@@ -150,20 +159,22 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	auth, err := oidc.New(opts)
-
 	if err != nil {
 		log.Error(err, "Invalid OIDC authenticator, removing it from store")
 
 		r.handlers.Delete(req.Name)
+		r.issuerURL.Delete(config.Spec.IssuerURL)
 
 		return reconcile.Result{}, err
 	}
 
-	r.handlers.Store(req.Name, &authenticatorInfo{
+	r.store(req.Name, &authenticatorInfo{
 		Token: auth,
 		name:  req.Name,
 		uid:   config.UID,
 	})
+
+	r.issuerURL.Store(config.Spec.IssuerURL, req.Name)
 
 	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil
 }
@@ -188,8 +199,36 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // unionAuthTokenHandler authenticates tokens using a chain of authenticator.Token objects
 type unionAuthTokenHandler struct {
-	handlers sync.Map
-	log      logr.Logger
+	handlers  sync.Map
+	issuerURL sync.Map
+	log       logr.Logger
+}
+
+func (u *unionAuthTokenHandler) load(key string) (value *authenticatorInfo, ok bool) {
+	v, ok := u.handlers.Load(key)
+	if v != nil {
+		value = v.(*authenticatorInfo)
+	}
+	return
+}
+
+func (u *unionAuthTokenHandler) store(key string, value *authenticatorInfo) {
+	u.handlers.Store(key, value)
+}
+
+func (u *unionAuthTokenHandler) getIssuerURL(ctx context.Context, token string) (string, error) {
+	var claims map[string]interface{}
+	tok, err := jwt.ParseSigned(token)
+	if err != nil {
+		return "", errors.New("cannot parse jwt token")
+	}
+
+	tok.UnsafeClaimsWithoutVerification(&claims)
+	iss, ok := claims["iss"].(string)
+	if !ok {
+		return "", errors.New("cannot retrieve issuer URL")
+	}
+	return iss, nil
 }
 
 // AuthenticateToken authenticates the token using a chain of authenticator.Token objects.
@@ -199,53 +238,62 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 		success bool
 	)
 
-	u.handlers.Range(func(key interface{}, value interface{}) bool {
-		currAuthRequestHandler, ok := value.(*authenticatorInfo)
-		if !ok {
-			u.log.Info("cannot convert to authenticatorInfo", "key", key, "value", value)
+	iss, err := u.getIssuerURL(ctx, token)
+	if err != nil {
+		return nil, false, err
+	}
+	reqName, ok := u.issuerURL.Load(iss)
+	if !ok {
+		return nil, false, nil
+	}
 
-			return false
+	s, ok := reqName.(string)
+	if !ok {
+		return nil, false, nil
+	}
+
+	currAuthRequestHandler, ok := u.load(s)
+	if !ok {
+		return nil, false, nil
+	}
+
+	resp, authenticated, err := currAuthRequestHandler.AuthenticateToken(ctx, token)
+
+	done := err == nil && authenticated
+	if done {
+		userName := resp.User.GetName()
+		// Mark token as invalid when userName has "system:" prefix.
+		if strings.HasPrefix(userName, "system:") {
+			// TODO add logging
+
+			return nil, false, errors.New("systems prefix")
 		}
 
-		resp, authenticated, err := currAuthRequestHandler.AuthenticateToken(ctx, token)
-
-		done := err == nil && authenticated
-		if done {
-			userName := resp.User.GetName()
-			// Mark token as invalid when userName has "system:" prefix.
-			if strings.HasPrefix(userName, "system:") {
-				// TODO add logging
-
-				return false
+		filteredGroups := []string{}
+		for _, group := range resp.User.GetGroups() {
+			// ignore groups with "system:" prefix
+			if !strings.HasPrefix(group, "system:") {
+				filteredGroups = append(filteredGroups, group)
 			}
+		}
 
-			filteredGroups := []string{}
-			for _, group := range resp.User.GetGroups() {
-				// ignore groups with "system:" prefix
-				if !strings.HasPrefix(group, "system:") {
-					filteredGroups = append(filteredGroups, group)
-				}
-			}
-
-			info = &authenticator.Response{
-				User: &user.DefaultInfo{
-					Name: userName,
-					Extra: map[string][]string{
-						"gardener.cloud/authenticator/name": {currAuthRequestHandler.name},
-						"gardener.cloud/authenticator/uid":  {string(currAuthRequestHandler.uid)},
-					},
-					Groups: filteredGroups,
-					UID:    resp.User.GetUID(),
+		info = &authenticator.Response{
+			User: &user.DefaultInfo{
+				Name: userName,
+				Extra: map[string][]string{
+					"gardener.cloud/authenticator/name": {currAuthRequestHandler.name},
+					"gardener.cloud/authenticator/uid":  {string(currAuthRequestHandler.uid)},
 				},
-			}
-
-			success = true
+				Groups: filteredGroups,
+				UID:    resp.User.GetUID(),
+			},
 		}
 
-		return !done
-	})
+		success = true
+		return info, success, nil
+	}
 
-	return info, success, nil
+	return nil, false, nil
 }
 
 type authenticatorInfo struct {
@@ -273,6 +321,7 @@ func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload 
 	if err != nil {
 		return nil, err
 	}
+
 	if len(jws.Signatures) == 0 {
 		return nil, fmt.Errorf("jwt contained no signatures")
 	}
@@ -288,7 +337,6 @@ func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload 
 }
 
 func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
-
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 
 	caCertPool := x509.NewCertPool()
@@ -333,7 +381,6 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider,   expected %q got %q", issuer, p.Issuer)
 	}
 	return gooidc.NewRemoteKeySet(ctx, p.JWKSURL), nil
-
 }
 
 func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
