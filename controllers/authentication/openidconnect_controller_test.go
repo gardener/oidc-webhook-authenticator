@@ -36,14 +36,9 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 	return &authenticator.Response{User: mock.returnUser}, mock.isAuthenticated, mock.err
 }
 
-func (mock *mockAuthRequestHandler) getIssuerURL(ctx context.Context, token string) (string, error) {
-	return mock.issuerURL, mock.err
-}
-
 var user1 = &user.DefaultInfo{Name: "fresh_ferret", UID: "alfa"}
 var user2 = &user.DefaultInfo{Name: "elegant_sheep", UID: "bravo"}
 var server *httptest.Server
-var issuerURL = "https://control-plane.minikube.internal:31133"
 var payloadString = `{"iss":"https://control-plane.minikube.internal:31133","sub":"CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs","aud":"oidc-webhook","exp":1620082901,"iat":1619996501,"nonce":"5tBc_OEvRo0rQd1Of5blBw5iamNQSP08_YfS3Nn64qw","at_hash":"KNgnpzE_KIS60exlG8aRhA","email":"admin@example.com","email_verified":true,"name":"admin"}`
 var jwtValid = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwYmUyZWMifQ.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.NkAeXMioHPeaqDcq-0364m4squnfkLx-jFXsdDBnfQwykSFOIKltisoQ-Eb4VsTQQ-fS0crkBWuKoEj_TAK3MHOZ9tqkm8NLNpDwxIiz3B81Se8tBoRqM33n_jjl3tE_Ho8-eJj2u4i3JIJ3_25RmcR-jjCIX-JWqs_yM3mh7vh3kNeTsIpoSAjzIcgbvTHZOqTrjJbmMUp72fDGdariEfiumoLtQ4LyHIpIcFpKAIDuoTbAyWwaIlXZHmPGmgkFEgZNiWlF5V8XX9e_RsTdXLI6d16jxczViPVH7FumTn7U9Lx9YiEZwDMN5X7Ym8ZnuTTDFrBXQwhDlV_yIIN0yg"
 var jwtInvalid = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5ZTBjMDc5MjVkNTRkY2M1MWJiYzViYWIwZDU3MWYyM2IwZmQzMiJ9.eyJpc3MiOiJodHRwczovL2NvbnRyb2wtcGxhbmUubWluaWt1YmUuaW50ZXJuYWw6MzExMzMiLCJzdWIiOiJDaVF3T0dFNE5qZzBZaTFrWWpnNExUUmlOek10T1RCaE9TMHpZMlF4TmpZeFpqVTBOallTQld4dlkyRnMiLCJhdWQiOiJvaWRjLXdlYmhvb2siLCJleHAiOjE2MjAwODI5MDEsImlhdCI6MTYxOTk5NjUwMSwibm9uY2UiOiI1dEJjX09FdlJvMHJRZDFPZjVibEJ3NWlhbU5RU1AwOF9ZZlMzTm42NHF3IiwiYXRfaGFzaCI6IktOZ25wekVfS0lTNjBleGxHOGFSaEEiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJhZG1pbiJ9.JYPysQVYHkE_ArZ9JHQCRfCJ4pPb4WYl5GZAi7PjNmJ7SfqS-MMLuBxDOnDiypWVYHYijTRsHYVBPx2HKijiNomAPwLswZFZcjjcSqGksnhS1XbLQYHM-rl3M6n31d2ILTDwi5gPXOpzYl1b_OcxngVLDs1u_6Gg1hhD6dSfAJyL4NTzKkC0VVTO1VIFNWVVziGexyVG_rPNQngyOxLj3liATJ6l3fEDl4giDwv3IIUkIyhIiymYYIKCoxf28wtUBvjkfavOuHYtqZ2Z6BL5qhxjbNtjXXLUppMY4MJBG47t9mp6OyxyGcGWZySoJcH5BaYyvALWQWxeIaClOyh2LdWiG57qUkoYSZOD8OYp_gyGgG7Rk7zsjwRkZkujx5uc88blpE3bGtQ7zGmERt6ETyR69KHGYiWEZDxWwP6YlBXJ0K4NKV-7gfcobvZRg-GdKToLTA0pvGA0mbdZUvAvjZ5aU10ydsd4cUFGMzlMI0wyyJYf9VzM85VSCQvgQJ0PH0zfPFH_A5DsU6Y7Aozismq17xdFugqIKmsKlrhtU90voUjRLYOUQWTGpiI8E7EIYgHYTLB-x4ob6YgXEjZEBuzpZSmuLw6tfnSN3BM6JUixdt1auRVtAHrWFrji0EGO_CSgr0yYH9qoZ1aSz_P0UEBSAQY2NkR6CM25a4_nIJ8"
@@ -91,19 +86,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 			It("Authentication should succeed", func() {
 
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true}
-				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false}
-				authRequestHandler := unionAuthTokenHandler{}
-				uuid := uuid.NewUUID()
-				authRequestHandler.store("https://control-plane.minikube.internal:31133", &authenticatorInfo{
-					Token: handler1,
-					name:  string(uuid),
-					uid:   uuid,
-				})
-				authRequestHandler.store("https://test", &authenticatorInfo{
-					Token: handler2,
-					name:  string(uuid),
-					uid:   uuid,
-				})
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://invalid"}
+				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
 				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
@@ -117,8 +101,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		Context("Second Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
-				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "http://tests"}
-				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true, issuerURL: "http://tests"}
+				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "https://invalid"}
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
 				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
@@ -248,17 +232,22 @@ var _ = Describe("OpenIDConnect controller", func() {
 	})
 })
 
-func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) unionAuthTokenHandler {
+func StoreAuthTokenHandler(authTokenHandlers ...*mockAuthRequestHandler) unionAuthTokenHandler {
 	union := unionAuthTokenHandler{}
+	var defaultIssuerURL string = "https://control-plane.minikube.internal:31133"
+
 	for _, auth := range authTokenHandlers {
 		uuid := uuid.NewUUID()
-		union.store(issuerURL, &authenticatorInfo{
+		if len(auth.issuerURL) == 0 {
+			auth.issuerURL = defaultIssuerURL
+		}
+
+		union.store(auth.issuerURL, &authenticatorInfo{
 			Token: auth,
 			name:  string(uuid),
 			uid:   uuid,
 		})
 	}
-
 	return union
 }
 

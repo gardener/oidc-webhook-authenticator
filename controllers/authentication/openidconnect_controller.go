@@ -199,8 +199,8 @@ func (u *unionAuthTokenHandler) load(key string) (value *authenticatorInfo, ok b
 	return
 }
 
-func (iMap *unionAuthTokenHandler) store(key string, value *authenticatorInfo) {
-	iMap.handlers.Store(key, value)
+func (u *unionAuthTokenHandler) store(key string, value *authenticatorInfo) {
+	u.handlers.Store(key, value)
 }
 
 func (u *unionAuthTokenHandler) getIssuerURL(ctx context.Context, token string) (string, error) {
