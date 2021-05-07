@@ -6,10 +6,11 @@ package v1alpha1
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
 
-	"github.com/lestrrat-go/jwx/jwk"
+	"gopkg.in/square/go-jose.v2"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	certutil "k8s.io/client-go/util/cert"
@@ -124,9 +125,11 @@ func validateJWKS(jwks []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = jwk.ParseString(string(data))
+
+	err = json.Unmarshal([]byte(data), &jose.JSONWebKeySet{})
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

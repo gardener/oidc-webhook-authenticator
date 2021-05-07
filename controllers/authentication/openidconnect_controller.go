@@ -20,7 +20,6 @@ import (
 	gooidc "github.com/coreos/go-oidc"
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/go-logr/logr"
-	"github.com/lestrrat-go/jwx/jwk"
 	"golang.org/x/time/rate"
 	jose "gopkg.in/square/go-jose.v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -356,22 +355,19 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
 }
 
-// loadKey parses the jwks key Set, extracts public rsa keys found and converts them into a JOSE JWK format.
+// loadKey parses the jwks key Set, and returns the available keys.
 func loadKey(jwks []byte) ([]jose.JSONWebKey, error) {
 	var keyList []jose.JSONWebKey
+	keySet := jose.JSONWebKeySet{}
 
-	pubKeyJwk, err := jwk.ParseString(string(jwks))
+	err := json.Unmarshal(jwks, &keySet)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, j := range pubKeyJwk.Keys {
-		pubKey, err := j.Materialize()
-		if err != nil {
-			return nil, err
-		}
-
-		keyList = append(keyList, jose.JSONWebKey{Key: pubKey, KeyID: j.KeyID(), Use: "sig", Algorithm: j.Algorithm()})
+	for _, k := range keySet.Keys {
+		keyList = append(keyList, k)
 	}
+
 	return keyList, nil
 }
