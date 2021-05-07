@@ -126,7 +126,7 @@ func validateJWKS(jwks []byte) error {
 	}
 	_, err = jwk.ParseString(string(data))
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	return nil
 }

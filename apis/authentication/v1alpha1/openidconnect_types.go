@@ -132,9 +132,14 @@ type OIDCAuthenticationSpec struct {
 // SigningAlgorithm is JOSE asymmetric signing algorithm value as defined by RFC 7518
 type SigningAlgorithm string
 
+// JWKSSpec defines the configuration for specifying JWKS keys offline.
 type JWKSSpec struct {
-	Keys              []byte `json:"keys,omitempty"`
-	DistributedClaims bool   `json:"distributedClaims,omitempty"`
+	// `keys` is a base64 encoded JSON webkey Set. If specified, the OIDCAuthenticator skips the request to the issuer's jwks_uri endpoint to retrieve the keys.
+	Keys []byte `json:"keys,omitempty"`
+
+	// +kubebuilder:default=true
+	// `distributedClaims` enables the OIDCAuthenticator to return references to claims that are asserted by external Claims providers.
+	DistributedClaims *bool `json:"distributedClaims,omitempty"`
 }
 
 const (

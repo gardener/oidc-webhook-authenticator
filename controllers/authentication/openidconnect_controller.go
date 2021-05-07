@@ -93,14 +93,12 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	var keySet gooidc.KeySet
 
-	if config.Spec.JWKS.Keys != nil {
+	if len(config.Spec.JWKS.Keys) != 0 {
 		keySet, err = newStaticKeySet(config.Spec.JWKS.Keys)
 		if err != nil {
 			log.Error(err, "Invalid static JWKS KeySet")
 
 			r.handlers.Delete(req.Name)
-
-			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
 	} else {
@@ -110,9 +108,9 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Invalid remote JWKS KeySet")
 
 			r.handlers.Delete(req.Name)
-
-			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	opts := oidc.Options{
@@ -264,10 +262,10 @@ type providerJSON struct {
 
 // staticKeySet implements gooidc.KeySet.
 type staticKeySet struct {
-	keys []*jose.JSONWebKey
+	keys []jose.JSONWebKey
 }
 
-func (s *staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt)
 	if err != nil {
 		return nil, err
@@ -359,8 +357,9 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 }
 
 // loadKey parses the jwks key Set, extracts public rsa keys found and converts them into a JOSE JWK format.
-func loadKey(jwks []byte) ([]*jose.JSONWebKey, error) {
-	var keyList []*jose.JSONWebKey
+func loadKey(jwks []byte) ([]jose.JSONWebKey, error) {
+	var keyList []jose.JSONWebKey
+
 	pubKeyJwk, err := jwk.ParseString(string(jwks))
 	if err != nil {
 		return nil, err
@@ -372,7 +371,7 @@ func loadKey(jwks []byte) ([]*jose.JSONWebKey, error) {
 			return nil, err
 		}
 
-		keyList = append(keyList, &jose.JSONWebKey{Key: pubKey, KeyID: j.KeyID(), Use: "sig", Algorithm: j.Algorithm()})
+		keyList = append(keyList, jose.JSONWebKey{Key: pubKey, KeyID: j.KeyID(), Use: "sig", Algorithm: j.Algorithm()})
 	}
 	return keyList, nil
 }
