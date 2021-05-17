@@ -120,10 +120,5 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 }
 
 func validateJWKS(jwks []byte) error {
-	err := json.Unmarshal(jwks, &jose.JSONWebKeySet{})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return json.Unmarshal(jwks, &jose.JSONWebKeySet{})
 }

@@ -103,8 +103,15 @@ spec:
                   keys offline.
                 properties:
                   distributedClaims:
+                    default: true
+                    description: '`distributedClaims` enables the OIDCAuthenticator
+                      to return references to claims that are asserted by external
+                      Claims providers.'
                     type: boolean
                   keys:
+                    description: '`keys` is a base64 encoded JSON webkey Set. If specified,
+                      the OIDCAuthenticator skips the request to the issuer''s jwks_uri
+                      endpoint to retrieve the keys.'
                     format: byte
                     type: string
                 type: object

@@ -110,9 +110,9 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Invalid remote JWKS KeySet")
 
 			r.handlers.Delete(req.Name)
-		}
 
-		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 	}
 
 	opts := oidc.Options{
@@ -336,7 +336,6 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 }
 
 func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
-
 	pubKeys, err := loadKey(jwks)
 	if err != nil {
 		return nil, err
