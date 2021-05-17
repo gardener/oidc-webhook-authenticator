@@ -116,9 +116,10 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 	}
 
 	authReconciler := &authcontroller.OpenIDConnectReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("OpenIDConnect"),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("OpenIDConnect"),
+		Scheme:       mgr.GetScheme(),
+		ResyncPeriod: opts.ResyncPeriod.Duration,
 	}
 
 	if err = (authReconciler).SetupWithManager(mgr); err != nil {

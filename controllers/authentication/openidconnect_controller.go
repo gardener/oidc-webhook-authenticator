@@ -43,6 +43,7 @@ type OpenIDConnectReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 	*unionAuthTokenHandler
+	ResyncPeriod time.Duration
 }
 
 // +kubebuilder:rbac:groups=authentication.gardener.cloud,resources=openidconnects,verbs=get;list;watch
@@ -149,7 +150,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		uid:   config.UID,
 	})
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil
 }
 
 func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
