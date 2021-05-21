@@ -62,7 +62,8 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	err := r.Get(ctx, req.NamespacedName, config)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			r.handlers.Delete(config.Spec.IssuerURL)
+			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
 
 			return reconcile.Result{}, nil
 		}
@@ -70,7 +71,8 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	if config.DeletionTimestamp != nil {
 		log.Info("Deletion timestamp present - removing OIDC authenticator")
-		r.handlers.Delete(config.Spec.IssuerURL)
+		r.handlers.Delete(req.Name)
+		r.issuerURL.Delete(config.Spec.IssuerURL)
 
 		return reconcile.Result{}, nil
 	}
@@ -87,7 +89,8 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			log.Error(err, "Invalid CABundle")
 
-			r.handlers.Delete(config.Spec.IssuerURL)
+			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
 
 			return reconcile.Result{}, nil
 		}
@@ -100,7 +103,11 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			log.Error(err, "Invalid static JWKS KeySet")
 
-			r.handlers.Delete(config.Spec.IssuerURL)
+			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
+
+			// can't do anything until spec is changed
+			return reconcile.Result{}, nil
 		}
 
 	} else {
@@ -109,10 +116,11 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			log.Error(err, "Invalid remote JWKS KeySet")
 
-			r.handlers.Delete(config.Spec.IssuerURL)
+			r.handlers.Delete(req.Name)
+			r.issuerURL.Delete(config.Spec.IssuerURL)
+			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
-		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	opts := oidc.Options{
@@ -153,16 +161,19 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		log.Error(err, "Invalid OIDC authenticator, removing it from store")
 
-		r.handlers.Delete(config.Spec.IssuerURL)
+		r.handlers.Delete(req.Name)
+		r.issuerURL.Delete(config.Spec.IssuerURL)
 
 		return reconcile.Result{}, err
 	}
 
-	r.store(config.Spec.IssuerURL, &authenticatorInfo{
+	r.store(req.Name, &authenticatorInfo{
 		Token: auth,
 		name:  req.Name,
 		uid:   config.UID,
 	})
+
+	r.issuerURL.Store(config.Spec.IssuerURL, req.Name)
 
 	return ctrl.Result{}, nil
 }
@@ -187,8 +198,9 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // unionAuthTokenHandler authenticates tokens using a chain of authenticator.Token objects
 type unionAuthTokenHandler struct {
-	handlers sync.Map
-	log      logr.Logger
+	handlers  sync.Map
+	issuerURL sync.Map
+	log       logr.Logger
 }
 
 func (u *unionAuthTokenHandler) load(key string) (value *authenticatorInfo, ok bool) {
@@ -229,8 +241,17 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 	if err != nil {
 		return nil, false, err
 	}
+	reqName, ok := u.issuerURL.Load(iss)
+	if !ok {
+		return nil, false, nil
+	}
 
-	currAuthRequestHandler, ok := u.load(iss)
+	s, ok := reqName.(string)
+	if !ok {
+		return nil, false, nil
+	}
+
+	currAuthRequestHandler, ok := u.load(s)
 	if !ok {
 		return nil, false, nil
 	}

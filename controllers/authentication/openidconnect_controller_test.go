@@ -242,11 +242,12 @@ func StoreAuthTokenHandler(authTokenHandlers ...*mockAuthRequestHandler) unionAu
 			auth.issuerURL = defaultIssuerURL
 		}
 
-		union.store(auth.issuerURL, &authenticatorInfo{
+		union.handlers.Store(string(uuid), &authenticatorInfo{
 			Token: auth,
 			name:  string(uuid),
 			uid:   uuid,
 		})
+		union.issuerURL.Store(auth.issuerURL, string(uuid))
 	}
 	return union
 }
