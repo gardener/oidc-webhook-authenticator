@@ -6,7 +6,6 @@ package v1alpha1
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
 
 	"gopkg.in/square/go-jose.v2"
@@ -70,14 +69,7 @@ func (r *OpenIDConnect) ValidateCreate() error {
 func (r *OpenIDConnect) ValidateUpdate(old runtime.Object) error {
 	openidconnectlog.Info("validate update", "name", r.Name)
 
-	oldOAC, ok := old.(*OpenIDConnect)
-	if !ok {
-		openidconnectlog.Info("cannot convert to OpenIDConnect", "old obj", old)
-
-		return fmt.Errorf("cannot convert old Object to OpenIDConnect")
-	}
-
-	return oldOAC.validate().ToAggregate()
+	return r.validate().ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
