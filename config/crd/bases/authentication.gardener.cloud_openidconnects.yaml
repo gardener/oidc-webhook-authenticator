@@ -98,6 +98,23 @@ spec:
                   discovery. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig"
                 pattern: ^https:\/\/
                 type: string
+              jwks:
+                description: JWKS if specified, provides an option to specify JWKS
+                  keys offline.
+                properties:
+                  distributedClaims:
+                    default: true
+                    description: '`distributedClaims` enables the OIDCAuthenticator
+                      to return references to claims that are asserted by external
+                      Claims providers.'
+                    type: boolean
+                  keys:
+                    description: '`keys` is a base64 encoded JSON webkey Set. If specified,
+                      the OIDCAuthenticator skips the request to the issuer''s jwks_uri
+                      endpoint to retrieve the keys.'
+                    format: byte
+                    type: string
+                type: object
               requiredClaims:
                 additionalProperties:
                   type: string
