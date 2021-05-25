@@ -5,6 +5,8 @@
 package options
 
 import (
+	"time"
+
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiserver "k8s.io/apiserver/pkg/server"
@@ -16,6 +18,11 @@ type Options struct {
 	SecureServing  *genericoptions.SecureServingOptionsWithLoopback
 	Authentication *genericoptions.DelegatingAuthenticationOptions
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
+	ResyncPeriod   resyncPeriod
+}
+
+type resyncPeriod struct {
+	Duration time.Duration
 }
 
 // NewOptions return options with default values.
@@ -27,6 +34,7 @@ func NewOptions() *Options {
 		SecureServing:  recommended.SecureServing,
 		Authentication: recommended.Authentication,
 		Authorization:  recommended.Authorization,
+		ResyncPeriod:   resyncPeriod{},
 	}
 
 	opts.Authentication.RemoteKubeConfigFileOptional = true
@@ -45,6 +53,24 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	o.SecureServing.AddFlags(fs)
 	o.Authentication.AddFlags(fs)
 	o.Authorization.AddFlags(fs)
+	o.ResyncPeriod.AddFlags(fs)
+}
+
+func (s *resyncPeriod) AddFlags(fs *pflag.FlagSet) {
+	if s == nil {
+		return
+	}
+
+	fs.DurationVar(&s.Duration, "resync-period", time.Second*0, "resync period")
+}
+
+func (s *resyncPeriod) ApplyTo(c *resyncPeriod) error {
+	if s == nil {
+		return nil
+	}
+	c.Duration = time.Minute * 60
+
+	return nil
 }
 
 // ApplyTo adds RecommendedOptions to the server configuration.
@@ -57,6 +83,9 @@ func (o *Options) ApplyTo(server *Config) error {
 		return err
 	}
 	if err := o.Authorization.ApplyTo(&server.Authorization); err != nil {
+		return err
+	}
+	if err := o.ResyncPeriod.ApplyTo(&server.ResyncPeriod); err != nil {
 		return err
 	}
 	return nil
@@ -77,4 +106,5 @@ type Config struct {
 	Authentication apiserver.AuthenticationInfo
 	Authorization  apiserver.AuthorizationInfo
 	SecureServing  *apiserver.SecureServingInfo
+	ResyncPeriod   resyncPeriod
 }
