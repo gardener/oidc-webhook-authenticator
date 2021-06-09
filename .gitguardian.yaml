@@ -1,3 +1,4 @@
 paths-ignore:
   - config/*
   - cfssl/*
+  - test/integration/*
