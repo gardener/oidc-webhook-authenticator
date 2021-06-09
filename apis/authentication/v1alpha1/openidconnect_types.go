@@ -164,7 +164,7 @@ const (
 	PS512 SigningAlgorithm = "PS512"
 )
 
-// ClaimPrefixingDisabled indicates that username or groups claim should not b
+// ClaimPrefixingDisabled indicates that username or groups claim should not be
 // prefixed automatically.
 const ClaimPrefixingDisabled = "-"
 

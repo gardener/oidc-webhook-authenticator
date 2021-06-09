@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+// handler implements http.Handler
 type handler struct {
 	authenticator.Token
 	log         logr.Logger
