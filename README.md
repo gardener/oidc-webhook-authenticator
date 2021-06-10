@@ -196,7 +196,7 @@ When a user wants to authenticate to the `kube-apiserver` via this new Custom Op
     ```
 
 1. The webhook then iterates over all registered `OpenIDConnect` Token authenticators and tries to validate the token.
-1. Upon a successful validation it returns the `TokeReview` with user, groups and extra parameters:
+1. Upon a successful validation it returns the `TokenReview` with user, groups and extra parameters:
 
     ```json
     {

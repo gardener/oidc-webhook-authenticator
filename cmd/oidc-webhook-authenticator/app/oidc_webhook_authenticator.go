@@ -130,7 +130,7 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 
 	authWH := &authentication.Webhook{
 		Authenticator: authReconciler,
-		Log:           ctrl.Log.WithName("webhooks").WithName("TokeReview"),
+		Log:           ctrl.Log.WithName("webhooks").WithName("TokenReview"),
 	}
 
 	if _, err := opts.SecureServing.Serve(newHandler(opts, authWH), 0, ctx.Done()); err != nil {

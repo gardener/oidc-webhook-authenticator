@@ -63,7 +63,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		usr, ok := apirequest.UserFrom(r.Context())
 
 		if ok && usr != nil {
-			if uid := usr.GetName(); uid != "" {
+			if uid := usr.GetUID(); uid != "" {
 				tr.Status.User.Extra["gardener.cloud/apiserver/uid"] = []string{uid}
 			}
 			if userName := usr.GetName(); userName != "" {

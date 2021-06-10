@@ -5,8 +5,8 @@ go 1.15
 require (
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/go-logr/logr v0.4.0
-	github.com/onsi/ginkgo v1.15.0
-	github.com/onsi/gomega v1.10.5
+	github.com/onsi/ginkgo v1.16.2
+	github.com/onsi/gomega v1.12.0
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
@@ -16,6 +16,7 @@ require (
 	k8s.io/apiserver v0.21.0
 	k8s.io/client-go v0.21.0
 	k8s.io/component-base v0.21.0
+	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
 	sigs.k8s.io/controller-runtime v0.9.0-alpha.1.0.20210412152200-442d3cad1e99
 )
 
