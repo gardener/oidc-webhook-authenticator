@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -29,7 +30,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
@@ -38,17 +38,17 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	k8sClient      client.Client
-	testEnv        *envtest.Environment
-	userNameClaim1 = "email"
-	userNameClaim2 = "customclaim"
+	apiServerSecurePort int
+	k8sClient           client.Client
+	testEnv             *envtest.Environment
+	userNameClaim1      = "email"
+	userNameClaim2      = "customclaim"
 )
 
 const (
 	idpServerPort1            = 50002
 	idpServerPort2            = 50003
 	idpServerPort3            = 50004
-	apiServerSecurePort       = 6884
 	timeout                   = time.Second * 10
 	interval                  = time.Millisecond * 250
 	defaultNamespaceName      = "default"
@@ -85,12 +85,9 @@ const (
 	}`
 )
 
-func TestAPIs(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Integration Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Integration Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -99,22 +96,18 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	wd, err := os.Getwd()
 	Expect(err).NotTo(HaveOccurred())
-	apiServerFlags := envtest.DefaultKubeAPIServerFlags[0 : len(envtest.DefaultKubeAPIServerFlags)-1]
-	apiServerFlags = append(apiServerFlags, "--bind-address=127.0.0.1")
-	apiServerFlags = append(apiServerFlags, fmt.Sprintf("--authentication-token-webhook-config-file=%s", filepath.Join(wd, "config", "webhook-kubeconfig.yaml")))
-	apiServerFlags = append(apiServerFlags, fmt.Sprintf("--tls-cert-file=%s", filepath.Join(wd, "api-server-certs", "tls.crt")))
-	apiServerFlags = append(apiServerFlags, fmt.Sprintf("--tls-private-key-file=%s", filepath.Join(wd, "api-server-certs", "tls.key")))
-	apiServerFlags = append(apiServerFlags, fmt.Sprintf("--secure-port=%v", apiServerSecurePort))
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
-		KubeAPIServerFlags:    apiServerFlags,
 	}
-
+	apiServer := testEnv.ControlPlane.GetAPIServer()
+	apiServer.Configure().Set("bind-address", "127.0.0.1")
+	apiServer.Configure().Set("authentication-token-webhook-config-file", filepath.Join(wd, "config", "webhook-kubeconfig.yaml"))
 	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
-
+	apiServerSecurePort, err = strconv.Atoi(apiServer.SecureServing.Port)
+	Expect(err).NotTo(HaveOccurred())
 	err = authenticationv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -145,7 +138,9 @@ var _ = BeforeSuite(func() {
 	wh := mgr.GetWebhookServer()
 	wh.Host = "127.0.0.1"
 	wh.Port = 50001
-	wh.CertDir = filepath.Join(wd, "api-server-certs")
+	wh.KeyName = "apiserver.key"
+	wh.CertName = "apiserver.crt"
+	wh.CertDir = apiServer.CertDir
 	wh.Register("/validate-token", authWH.Build())
 
 	go func() {
