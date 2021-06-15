@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -22,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	"golang.org/x/time/rate"
 	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -60,7 +62,8 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	err := r.Get(ctx, req.NamespacedName, config)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			r.handlers.Delete(req.Name)
+
+			r.deleteHandler(req.Name)
 
 			return reconcile.Result{}, nil
 		}
@@ -68,7 +71,8 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	if config.DeletionTimestamp != nil {
 		log.Info("Deletion timestamp present - removing OIDC authenticator")
-		r.handlers.Delete(req.Name)
+
+		r.deleteHandler(req.Name)
 
 		return reconcile.Result{}, nil
 	}
@@ -85,7 +89,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			log.Error(err, "Invalid CABundle")
 
-			r.handlers.Delete(req.Name)
+			r.deleteHandler(req.Name)
 
 			return reconcile.Result{}, nil
 		}
@@ -98,7 +102,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			log.Error(err, "Invalid static JWKS KeySet")
 
-			r.handlers.Delete(req.Name)
+			r.deleteHandler(req.Name)
 
 			// can't do anything until spec is changed
 			return reconcile.Result{}, nil
@@ -110,7 +114,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			log.Error(err, "Invalid remote JWKS KeySet")
 
-			r.handlers.Delete(req.Name)
+			r.deleteHandler(req.Name)
 
 			return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 		}
@@ -154,12 +158,12 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		log.Error(err, "Invalid OIDC authenticator, removing it from store")
 
-		r.handlers.Delete(req.Name)
+		r.deleteHandler(req.Name)
 
 		return reconcile.Result{}, err
 	}
 
-	r.handlers.Store(req.Name, &authenticatorInfo{
+	r.registerHandler(config.Spec.IssuerURL, req.Name, &authenticatorInfo{
 		Token: auth,
 		name:  req.Name,
 		uid:   config.UID,
@@ -171,7 +175,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager specifies how the controller is built to watch custom resources of kind OpenIDConnect
 func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.unionAuthTokenHandler == nil {
-		r.unionAuthTokenHandler = &unionAuthTokenHandler{handlers: sync.Map{}, log: r.Log}
+		r.unionAuthTokenHandler = &unionAuthTokenHandler{issuerHandlers: sync.Map{}, nameIssuerMapping: sync.Map{}, log: r.Log}
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -189,8 +193,24 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // unionAuthTokenHandler authenticates tokens using a chain of authenticator.Token objects
 type unionAuthTokenHandler struct {
-	handlers sync.Map
-	log      logr.Logger
+	issuerHandlers    sync.Map
+	nameIssuerMapping sync.Map
+	log               logr.Logger
+}
+
+func (u *unionAuthTokenHandler) getIssuerURL(ctx context.Context, token string) (string, error) {
+	var claims map[string]interface{}
+	tok, err := jwt.ParseSigned(token)
+	if err != nil {
+		return "", errors.New("cannot parse jwt token")
+	}
+
+	tok.UnsafeClaimsWithoutVerification(&claims)
+	iss, ok := claims["iss"].(string)
+	if !ok {
+		return "", errors.New("cannot retrieve issuer URL")
+	}
+	return iss, nil
 }
 
 // AuthenticateToken authenticates the token using a chain of authenticator.Token objects.
@@ -200,7 +220,22 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 		success bool
 	)
 
-	u.handlers.Range(func(key interface{}, value interface{}) bool {
+	iss, err := u.getIssuerURL(ctx, token)
+	if err != nil {
+		return nil, false, err
+	}
+
+	val, ok := u.issuerHandlers.Load(iss)
+	if !ok {
+		return nil, false, nil
+	}
+
+	handlers, ok := val.(*sync.Map)
+	if !ok {
+		return nil, false, nil
+	}
+
+	handlers.Range(func(key interface{}, value interface{}) bool {
 		currAuthRequestHandler, ok := value.(*authenticatorInfo)
 		if !ok {
 			u.log.Info("cannot convert to authenticatorInfo", "key", key, "value", value)
@@ -247,6 +282,45 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 	})
 
 	return info, success, nil
+}
+
+func (u *unionAuthTokenHandler) registerHandler(issuerURL string, handlerKey string, authInfo *authenticatorInfo) {
+	// remove previous location of the handler if issuer url differs
+	if val, ok := u.nameIssuerMapping.Load(handlerKey); ok {
+		// conversions should be safe
+		url := val.(string)
+		if url != issuerURL {
+			if m, ok := u.issuerHandlers.Load(url); ok {
+				asMap := m.(*sync.Map)
+				asMap.Delete(handlerKey)
+			}
+		}
+	}
+
+	if val, ok := u.issuerHandlers.Load(issuerURL); ok {
+		// conversions should be safe
+		asMap := val.(*sync.Map)
+		asMap.Store(handlerKey, authInfo)
+		u.nameIssuerMapping.Store(handlerKey, issuerURL)
+	} else {
+		issuerHandlers := &sync.Map{}
+		issuerHandlers.Store(handlerKey, authInfo)
+		u.issuerHandlers.Store(issuerURL, issuerHandlers)
+		u.nameIssuerMapping.Store(handlerKey, issuerURL)
+	}
+}
+
+func (u *unionAuthTokenHandler) deleteHandler(handlerKey string) {
+	if val, ok := u.nameIssuerMapping.Load(handlerKey); ok {
+		// conversions should be safe
+		url := val.(string)
+		if m, ok := u.issuerHandlers.Load(url); ok {
+			asMap := m.(*sync.Map)
+			asMap.Delete(handlerKey)
+		}
+
+		u.nameIssuerMapping.Delete(handlerKey)
+	}
 }
 
 type authenticatorInfo struct {

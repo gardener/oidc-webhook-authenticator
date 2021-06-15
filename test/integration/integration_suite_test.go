@@ -52,9 +52,11 @@ const (
 	timeout                   = time.Second * 10
 	interval                  = time.Millisecond * 250
 	defaultNamespaceName      = "default"
+	differentNamespaceName    = "different"
 	oidcName1                 = "test1"
 	oidcName2                 = "test2"
 	oidcName3                 = "test3"
+	oidcName4                 = "test4"
 	wellKnownResponseTemplate = `{
 		"issuer": "%[1]s",
 		"authorization_endpoint": "%[1]s/auth",
@@ -234,6 +236,28 @@ func setupCustomRecources() {
 			},
 		},
 	}
+
+	// This is a configuration similar to openidconnect1 but with different client id
+	openidconnect4 := &authenticationv1alpha1.OpenIDConnect{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "authentication.gardener.cloud/v1alpha1",
+			Kind:       "OpenIDConnect",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcName4,
+			Namespace: defaultNamespaceName,
+		},
+		Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+			IssuerURL:     fmt.Sprintf("https://localhost:%v", idpServerPort1),
+			ClientID:      "different-client-id",
+			UsernameClaim: &userNameClaim1,
+			CABundle:      ca,
+		},
+	}
+
+	Expect(k8sClient.Create(ctx, openidconnect4)).Should(Succeed())
+	waitForOIDCResourceToBecomeAvailable(oidcName4, defaultNamespaceName)
+
 	Expect(k8sClient.Create(ctx, openidconnect1)).Should(Succeed())
 	waitForOIDCResourceToBecomeAvailable(oidcName1, defaultNamespaceName)
 
