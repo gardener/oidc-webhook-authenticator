@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// OpenIDConnectReconciler reconciles a OpenIDConnect object
+// OpenIDConnectReconciler reconciles an OpenIDConnect object
 type OpenIDConnectReconciler struct {
 	client.Client
 	Log    logr.Logger
@@ -168,6 +168,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil
 }
 
+// SetupWithManager specifies how the controller is built to watch custom resources of kind OpenIDConnect
 func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.unionAuthTokenHandler == nil {
 		r.unionAuthTokenHandler = &unionAuthTokenHandler{handlers: sync.Map{}, log: r.Log}
@@ -268,6 +269,7 @@ type staticKeySet struct {
 	keys []jose.JSONWebKey
 }
 
+// VerifySignature validates the signature of the JWT using static JWKs and returns the payload.
 func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt)
 	if err != nil {
@@ -287,6 +289,9 @@ func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload 
 	return nil, fmt.Errorf("no keys matches jwk keyid")
 }
 
+// remoteKeySet uses HTTP GET to discover the JWKs URL of the issuer
+// and returns a KeySet that can validate JSON web tokens by fetching
+// JSON web token sets hosted at that remote URL.
 func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
 
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
@@ -330,12 +335,13 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 	}
 
 	if p.Issuer != issuer {
-		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider,   expected %q got %q", issuer, p.Issuer)
+		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
 	}
-	return gooidc.NewRemoteKeySet(ctx, p.JWKSURL), nil
 
+	return gooidc.NewRemoteKeySet(ctx, p.JWKSURL), nil
 }
 
+// newStaticKeySet returns a KeySet that can validate JSON web tokens.
 func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
 	pubKeys, err := loadKey(jwks)
 	if err != nil {
@@ -353,14 +359,13 @@ func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
 	ct := r.Header.Get("Content-Type")
 	mediaType, _, parseErr := mime.ParseMediaType(ct)
 	if parseErr == nil && mediaType == "application/json" {
-		return fmt.Errorf("got Content-Type = application/json, but could   not unmarshal as JSON: %v", err)
+		return fmt.Errorf("got Content-Type = application/json, but could not unmarshal as JSON: %v", err)
 	}
 	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
 }
 
 // loadKey parses the jwks key Set, and returns the available keys.
 func loadKey(jwks []byte) ([]jose.JSONWebKey, error) {
-	var keyList []jose.JSONWebKey
 	keySet := jose.JSONWebKeySet{}
 
 	err := json.Unmarshal(jwks, &keySet)
@@ -368,9 +373,5 @@ func loadKey(jwks []byte) ([]jose.JSONWebKey, error) {
 		return nil, err
 	}
 
-	for _, k := range keySet.Keys {
-		keyList = append(keyList, k)
-	}
-
-	return keyList, nil
+	return keySet.Keys, nil
 }
