@@ -44,11 +44,12 @@ var _ = Describe("Integration", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(res.StatusCode).To(Equal(expectedStatusCode))
 			},
-			Entry("valid token from first identity provider", userToken1, http.StatusOK),
-			Entry("valid token from second identity provider second key", userToken2, http.StatusOK),
-			Entry("valid token from second identity provider first key", userToken3, http.StatusOK),
-			Entry("valid token from first identity provider with kid in header", userTokenWithKid, http.StatusOK),
-			Entry("valid token validated via static jwks", userTokenStaticKeys, http.StatusOK),
+			// User has no permissions to list pods
+			Entry("valid token from first identity provider", userToken1, http.StatusForbidden),
+			Entry("valid token from second identity provider second key", userToken2, http.StatusForbidden),
+			Entry("valid token from second identity provider first key", userToken3, http.StatusForbidden),
+			Entry("valid token from first identity provider with kid in header", userTokenWithKid, http.StatusForbidden),
+			Entry("valid token validated via static jwks", userTokenStaticKeys, http.StatusForbidden),
 			Entry("invalid token due to no required username claim present", userTokenInvalidClaim, http.StatusUnauthorized),
 			Entry("invalid token due to wrong issuer", userTokenInvalidIssuer, http.StatusUnauthorized),
 			Entry("invalid token due to wrong client id", userTokenInvalidClientID, http.StatusUnauthorized),

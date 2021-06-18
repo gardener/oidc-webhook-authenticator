@@ -229,7 +229,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 	})
 })
 
-func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) unionAuthTokenHandler {
+func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) *unionAuthTokenHandler {
 	union := unionAuthTokenHandler{}
 	for _, auth := range authTokenHandlers {
 		uuid := uuid.NewUUID()
@@ -240,7 +240,7 @@ func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) unionAuthTo
 		})
 	}
 
-	return union
+	return &union
 }
 
 func testIDPServer() *httptest.Server {

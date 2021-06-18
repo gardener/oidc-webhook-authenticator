@@ -66,5 +66,11 @@ docker-push: ## Push docker image with the manager.
 tools-image:
 	docker build --target=tools -f dev.Dockerfile -t tools:latest .
 
+.PHONY: test
 test:
-	go test ./... -v count=1
+	@./hack/local/run-tests.sh
+
+.PHONY: cleanup-test-env
+cleanup-test-env:
+	@.hack/local/cleanup-test-env.sh
+
