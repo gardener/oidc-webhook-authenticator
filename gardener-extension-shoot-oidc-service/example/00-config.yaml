@@ -1,0 +1,2 @@
+apiVersion: shoot-oidc-service.extensions.config.gardener.cloud/v1alpha1
+kind: Configuration
