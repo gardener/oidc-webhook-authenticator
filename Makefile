@@ -16,6 +16,9 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# helm
+include helm.mk
+
 all: build
 
 ##@ General
@@ -74,4 +77,3 @@ test:
 .PHONY: cleanup-test-env
 cleanup-test-env:
 	@.hack/local/cleanup-test-env.sh
-
