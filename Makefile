@@ -16,6 +16,9 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# helm
+include helm.mk
+
 all: build
 
 ##@ General
