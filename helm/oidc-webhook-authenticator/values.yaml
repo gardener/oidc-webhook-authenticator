@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: oidc-webhook-authenticator
+  repository: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
