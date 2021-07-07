@@ -15,7 +15,7 @@ If release name contains chart name it will be used as a full name.
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
 {{- $name := default .Chart.Name .Values.nameOverride }}
-{{- printf "gardener.cloud:authentication:%s" $name | trunc 63 | trimSuffix "-" }}
+{{- printf "gardener-cloud-authentication-%s" $name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
