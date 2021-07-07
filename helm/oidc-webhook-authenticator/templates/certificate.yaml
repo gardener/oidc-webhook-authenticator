@@ -1,0 +1,21 @@
+{{ if .Values.certificate.certmanager }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "oidc-webhook-authenticator.fullname" . }}
+spec:
+  dnsNames:
+  - {{ include "oidc-webhook-authenticator.fullname" . }}.{{ .Release.Namespace }}.svc
+  - {{ include "oidc-webhook-authenticator.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-issuer
+  secretName: {{ .Values.certificate.secretName | default (include "oidc-webhook-authenticator.fullname" .) }}
+{{ end }}
