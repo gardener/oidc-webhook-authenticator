@@ -65,8 +65,12 @@ tolerations: []
 
 affinity: {}
 
-# Name of the secret containing the certificates for the oidc-webhook-authenticator
-certificatesSecretName: oidc-webhook-authenticator
+certificate:
+  # Use cert-manager to issue the certificate automatically
+  certmanager: true
+  # Name of the secret containing the certificates for the oidc-webhook-authenticator
+  # Auto-generated if empty.
+  secretName: ""
 
 oidc:
   - name: "foo"

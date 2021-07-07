@@ -50,7 +50,7 @@ spec:
       volumes:
       - name: certs
         secret:
-          secretName: {{ .Values.certificatesSecretName }}
+          secretName: {{ .Values.certificate.secretName | default (include "oidc-webhook-authenticator.fullname" .) }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
