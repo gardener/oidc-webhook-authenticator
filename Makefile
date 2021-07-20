@@ -38,6 +38,7 @@ help: ## Display this help.
 
 manifests: tools-image ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	cp $(shell pwd)/config/crd/bases/authentication.gardener.cloud_openidconnects.yaml $(shell pwd)/gardener-extension-shoot-oidc-service/pkg/controller/lifecycle/authentication.gardener.cloud_openidconnects.yaml
 
 generate: tools-image ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -73,4 +74,3 @@ test:
 .PHONY: cleanup-test-env
 cleanup-test-env:
 	@.hack/local/cleanup-test-env.sh
-
