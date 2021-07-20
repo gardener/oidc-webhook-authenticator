@@ -1,0 +1,275 @@
+# List of all container images which are deployed by the Gardener.
+# In case an image can only be used for a specific Kubernetes version, the
+# entry must have a key "runtimeVersion" whose value describe for which kubernetes runtime
+# the respective tag can be used. The syntax must be as described in the
+# Masterminds/semver package: https://github.com/Masterminds/semver#hyphen-range-comparisons.
+images:
+# Gardener components
+- name: gardenlet
+  sourceRepository: github.com/gardener/gardener
+  repository: eu.gcr.io/gardener-project/gardener/gardenlet
+- name: gardener-seed-admission-controller
+  sourceRepository: github.com/gardener/gardener
+  repository: eu.gcr.io/gardener-project/gardener/seed-admission-controller
+
+# Seed bootstrap
+- name: pause-container
+  sourceRepository: github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile
+  repository: gcr.io/google_containers/pause-amd64
+  tag: "3.1"
+- name: etcd-druid
+  sourceRepository: github.com/gardener/etcd-druid
+  repository: eu.gcr.io/gardener-project/gardener/etcd-druid
+  tag: "v0.5.2"
+- name: gardener-resource-manager
+  sourceRepository: github.com/gardener/gardener-resource-manager
+  repository: eu.gcr.io/gardener-project/gardener/gardener-resource-manager
+  tag: "v0.24.0"
+- name: dependency-watchdog
+  sourceRepository: github.com/gardener/dependency-watchdog
+  repository: eu.gcr.io/gardener-project/gardener/dependency-watchdog
+  tag: "v0.6.1"
+
+# Seed controlplane
+#   hyperkube is used for kubectl + kubelet binaries on the worker nodes
+- name: hyperkube
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/hyperkube
+  targetVersion: "< 1.19"
+- name: hyperkube
+  sourceRepository: github.com/gardener/hyperkube
+  repository: eu.gcr.io/gardener-project/hyperkube
+  targetVersion: ">= 1.19"
+- name: kube-apiserver
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/hyperkube
+  targetVersion: "< 1.17"
+- name: kube-apiserver
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/kube-apiserver
+  targetVersion: ">= 1.17"
+- name: kube-controller-manager
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/hyperkube
+  targetVersion: "< 1.17"
+- name: kube-controller-manager
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/kube-controller-manager
+  targetVersion: ">= 1.17"
+- name: kube-scheduler
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/hyperkube
+  targetVersion: "< 1.17"
+- name: kube-scheduler
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/kube-scheduler
+  targetVersion: ">= 1.17"
+- name: kube-proxy
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/hyperkube
+  targetVersion: "< 1.17"
+- name: kube-proxy
+  sourceRepository: github.com/kubernetes/kubernetes
+  repository: k8s.gcr.io/kube-proxy
+  targetVersion: ">= 1.17"
+- name: cluster-autoscaler
+  sourceRepository: github.com/gardener/autoscaler
+  repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
+  tag: "v0.16.2"
+  targetVersion: ">= 1.16"
+- name: cluster-autoscaler
+  sourceRepository: github.com/gardener/autoscaler
+  repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
+  targetVersion: "< 1.16"
+  tag: "v0.10.1"
+- name: vpn-seed
+  sourceRepository: github.com/gardener/vpn
+  repository: eu.gcr.io/gardener-project/gardener/vpn-seed
+  tag: "0.19.0"
+- name: vpn-seed-server
+  sourceRepository: github.com/gardener/vpn2
+  repository: eu.gcr.io/gardener-project/gardener/vpn-seed-server
+  tag: "0.4.0"
+- name: konnectivity-server
+  sourceRepository: github.com/gardener/replica-reloader
+  repository: eu.gcr.io/gardener-project/gardener/replica-reloader
+  tag: "v0.2.0-konnectivity-server-v0.0.15"
+
+# Monitoring
+- name: alertmanager
+  sourceRepository: github.com/prometheus/alertmanager
+  repository: quay.io/prometheus/alertmanager
+  tag: v0.18.0
+- name: prometheus
+  sourceRepository: github.com/prometheus/prometheus
+  repository: quay.io/prometheus/prometheus
+  tag: v2.23.0
+- name: configmap-reloader
+  sourceRepository: github.com/jimmidyson/configmap-reload
+  repository: quay.io/coreos/configmap-reload
+  tag: v0.0.1
+- name: kube-state-metrics
+  sourceRepository: github.com/kubernetes/kube-state-metrics
+  repository: quay.io/coreos/kube-state-metrics
+  tag: v1.9.7
+- name: node-exporter
+  sourceRepository: github.com/prometheus/node_exporter
+  repository: quay.io/prometheus/node-exporter
+  tag: v1.0.1
+- name: grafana
+  sourceRepository: github.com/grafana/grafana
+  repository: grafana/grafana
+  tag: "7.5.7"
+- name: blackbox-exporter
+  sourceRepository: github.com/prometheus/blackbox_exporter
+  repository: quay.io/prometheus/blackbox-exporter
+  tag: v0.18.0
+- name: metrics-server
+  sourceRepository: github.com/kubernetes-sigs/metrics-server
+  repository: k8s.gcr.io/metrics-server/metrics-server
+  tag: v0.4.3
+
+# Shoot core addons
+- name: vpn-shoot
+  sourceRepository: github.com/gardener/vpn
+  repository: eu.gcr.io/gardener-project/gardener/vpn-shoot
+  tag: "0.19.0"
+- name: vpn-shoot-client
+  sourceRepository: github.com/gardener/vpn2
+  repository: eu.gcr.io/gardener-project/gardener/vpn-shoot-client
+  tag: "0.4.0"
+- name: konnectivity-agent
+  sourceRepository: github.com/kubernetes-sigs/apiserver-network-proxy
+  repository: k8s.gcr.io/kas-network-proxy/proxy-agent
+  tag: "v0.0.15"
+- name: coredns
+  sourceRepository: github.com/coredns/coredns
+  repository: coredns/coredns
+  tag: "1.8.4"
+- name: node-local-dns
+  sourceRepository: github.com/kubernetes/kubernetes/blob/master/cluster/addons/dns/nodelocaldns
+  repository: k8s.gcr.io/dns/k8s-dns-node-cache
+  tag: "1.17.4"
+- name: node-problem-detector
+  sourceRepository: github.com/kubernetes/node-problem-detector
+  repository: k8s.gcr.io/node-problem-detector/node-problem-detector
+  tag: "v0.8.7"
+
+# Shoot optional addons
+- name: kubernetes-dashboard
+  sourceRepository: github.com/kubernetes/dashboard
+  repository: k8s.gcr.io/kubernetes-dashboard-amd64
+  tag: v1.10.1
+  targetVersion: "< 1.16"
+- name: kubernetes-dashboard
+  sourceRepository: github.com/kubernetes/dashboard
+  repository: kubernetesui/dashboard
+  tag: v2.0.3
+  targetVersion: ">= 1.16, < 1.19"
+- name: kubernetes-dashboard
+  sourceRepository: github.com/kubernetes/dashboard
+  repository: kubernetesui/dashboard
+  tag: v2.0.4
+  targetVersion: ">= 1.19"
+- name: kubernetes-dashboard-metrics-scraper
+  sourceRepository: github.com/kubernetes/dashboard
+  repository: kubernetesui/metrics-scraper
+  tag: v1.0.4
+  targetVersion: ">= 1.16"
+- name: nginx-ingress-controller
+  sourceRepository: github.com/kubernetes/ingress-nginx
+  repository: quay.io/kubernetes-ingress-controller/nginx-ingress-controller
+  tag: "0.22.0"
+  targetVersion: "< 1.20"
+- name: nginx-ingress-controller
+  sourceRepository: github.com/kubernetes/ingress-nginx
+  repository: k8s.gcr.io/ingress-nginx/controller
+  tag: "v0.41.2"
+  targetVersion: ">= 1.20"
+- name: nginx-ingress-controller-seed
+  sourceRepository: github.com/kubernetes/ingress-nginx
+  repository: k8s.gcr.io/ingress-nginx/controller
+  tag: "v0.41.2"
+- name: ingress-default-backend
+  sourceRepository: github.com/gardener/ingress-default-backend
+  repository: eu.gcr.io/gardener-project/gardener/ingress-default-backend
+  tag: "0.9.0"
+
+# Miscellaenous
+- name: busybox
+  sourceRepository: github.com/mirror/busybox
+  repository: busybox
+  tag: "1.29.2"
+- name: alpine
+  repository: alpine
+  tag: "3.10.3"
+- name: alpine-iptables
+  sourceRepository: github.com/DockToFuture/alpine-iptables
+  repository: eu.gcr.io/gardener-project/alpine-iptables
+  tag: "3.10.3"
+
+# Logging
+- name: fluent-bit
+  sourceRepository: github.com/fluent/fluent-bit
+  repository: fluent/fluent-bit
+  tag: "1.7.8"
+- name: fluent-bit-plugin-installer
+  sourceRepository: github.com/gardener/logging
+  repository: eu.gcr.io/gardener-project/gardener/fluent-bit-to-loki
+  tag: "v0.35.0"
+- name: loki
+  sourceRepository: github.com/grafana/loki
+  repository: grafana/loki
+  tag: "2.2.1"
+- name: loki-curator
+  sourceRepository: github.com/gardener/logging
+  repository: eu.gcr.io/gardener-project/gardener/loki-curator
+  tag: "v0.35.0"
+
+# VPA
+- name: vpa-admission-controller
+  sourceRepository: github.com/kubernetes/autoscaler
+  repository: k8s.gcr.io/autoscaling/vpa-admission-controller
+  tag: "0.9.2"
+- name: vpa-recommender
+  sourceRepository: github.com/kubernetes/autoscaler
+  repository: k8s.gcr.io/autoscaling/vpa-recommender
+  tag: "0.9.2"
+- name: vpa-updater
+  sourceRepository: github.com/kubernetes/autoscaler
+  repository: k8s.gcr.io/autoscaling/vpa-updater
+  tag: "0.9.2"
+- name: vpa-exporter
+  sourceRepository: github.com/gardener/vpa-exporter
+  repository: eu.gcr.io/gardener-project/gardener/vpa-exporter
+  tag: "0.1.5"
+
+# HVPA
+- name: hvpa-controller
+  sourceRepository: github.com/gardener/hvpa-controller
+  repository: eu.gcr.io/gardener-project/gardener/hvpa-controller
+  tag: "v0.3.1"
+
+# Istio
+- name: istio-proxy
+  sourceRepository: github.com/istio/istio
+  repository: gcr.io/istio-release/proxyv2
+  tag: "1.9.5"
+- name: istio-istiod
+  sourceRepository: github.com/istio/istio
+  repository: gcr.io/istio-release/pilot
+  tag: "1.9.5"
+
+# API Server SNI
+- name: apiserver-proxy
+  sourceRepository: github.com/envoyproxy/envoy
+  repository: envoyproxy/envoy
+  tag: "v1.16.0"
+- name: apiserver-proxy-sidecar
+  sourceRepository: github.com/gardener/apiserver-proxy
+  repository: eu.gcr.io/gardener-project/gardener/apiserver-proxy
+  tag: "v0.1.0"
+- name: apiserver-proxy-pod-webhook
+  sourceRepository: github.com/gardener/apiserver-proxy
+  repository: eu.gcr.io/gardener-project/gardener/apiserver-proxy-pod-webhook
+  tag: "v0.2.0"
