@@ -1,0 +1,9 @@
+{{- range $i, $oidc := .Values.oidc }}
+apiVersion: authentication.gardener.cloud/v1alpha1
+kind: OpenIDConnect
+metadata:
+  name: {{ required ".Values.oidc.name must be provided" $oidc.name }}
+spec:
+  {{- toYaml $oidc.values | nindent 2 }}
+---
+{{ end -}}
