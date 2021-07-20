@@ -6,8 +6,12 @@ package kapiserver
 
 import (
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
-	"github.com/gardener/gardener/extensions/pkg/webhook/shoot"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane"
+	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/original/components/kubelet"
+	oscutils "github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/utils"
+
+	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -17,10 +21,18 @@ var logger = log.Log.WithName("oidc-kapiserver-webhook")
 
 func New(mgr manager.Manager) (*extensionswebhook.Webhook, error) {
 	logger.Info("Adding webhook to manager")
-	// TODO
-	// not sure if the webhook should target shoot? I guess this means the control plane of the shoot in which case it is correct.
-	return shoot.New(mgr, shoot.Args{
-		Types:   []client.Object{&corev1.Pod{}},
-		Mutator: NewMutator(logger),
+
+	fciCodec := oscutils.NewFileContentInlineCodec()
+
+	return controlplane.New(mgr, controlplane.Args{
+		Kind:  controlplane.KindShoot,
+		Types: []client.Object{&appsv1.Deployment{}},
+		Mutator: genericmutator.NewMutator(
+			NewMutator(logger),
+			oscutils.NewUnitSerializer(),
+			kubelet.NewConfigCodec(fciCodec),
+			fciCodec,
+			logger,
+		),
 	})
 }

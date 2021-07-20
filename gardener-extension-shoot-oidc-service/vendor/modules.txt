@@ -42,6 +42,7 @@ github.com/gardener/external-dns-management/pkg/apis/dns
 github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1
 # github.com/gardener/gardener v1.25.0
 ## explicit
+github.com/gardener/gardener/charts
 github.com/gardener/gardener/extensions/pkg/controller
 github.com/gardener/gardener/extensions/pkg/controller/cmd
 github.com/gardener/gardener/extensions/pkg/controller/error
@@ -50,6 +51,7 @@ github.com/gardener/gardener/extensions/pkg/controller/healthcheck
 github.com/gardener/gardener/extensions/pkg/controller/healthcheck/config
 github.com/gardener/gardener/extensions/pkg/controller/healthcheck/config/v1alpha1
 github.com/gardener/gardener/extensions/pkg/controller/healthcheck/general
+github.com/gardener/gardener/extensions/pkg/controller/operatingsystemconfig/oscommon/cloudinit
 github.com/gardener/gardener/extensions/pkg/handler
 github.com/gardener/gardener/extensions/pkg/inject
 github.com/gardener/gardener/extensions/pkg/log
@@ -57,7 +59,9 @@ github.com/gardener/gardener/extensions/pkg/predicate
 github.com/gardener/gardener/extensions/pkg/util
 github.com/gardener/gardener/extensions/pkg/webhook
 github.com/gardener/gardener/extensions/pkg/webhook/cmd
-github.com/gardener/gardener/extensions/pkg/webhook/shoot
+github.com/gardener/gardener/extensions/pkg/webhook/context
+github.com/gardener/gardener/extensions/pkg/webhook/controlplane
+github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator
 github.com/gardener/gardener/hack
 github.com/gardener/gardener/hack/.ci
 github.com/gardener/gardener/hack/api-reference/template
@@ -106,12 +110,19 @@ github.com/gardener/gardener/pkg/gardenlet/apis/config/helper
 github.com/gardener/gardener/pkg/gardenlet/apis/config/v1alpha1
 github.com/gardener/gardener/pkg/logger
 github.com/gardener/gardener/pkg/mock/controller-runtime/client
+github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/original/components
+github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/original/components/containerd
+github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/original/components/docker
+github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/original/components/kubelet
+github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/original/components/logrotate
+github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/utils
 github.com/gardener/gardener/pkg/operation/common
 github.com/gardener/gardener/pkg/utils
 github.com/gardener/gardener/pkg/utils/context
 github.com/gardener/gardener/pkg/utils/errors
 github.com/gardener/gardener/pkg/utils/flow
 github.com/gardener/gardener/pkg/utils/gardener
+github.com/gardener/gardener/pkg/utils/imagevector
 github.com/gardener/gardener/pkg/utils/infodata
 github.com/gardener/gardener/pkg/utils/kubernetes
 github.com/gardener/gardener/pkg/utils/kubernetes/health
@@ -753,6 +764,8 @@ k8s.io/kube-openapi/pkg/generators
 k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/util/sets
+# k8s.io/kubelet v0.20.7
+k8s.io/kubelet/config/v1beta1
 # k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
 k8s.io/utils/buffer
 k8s.io/utils/integer
