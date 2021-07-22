@@ -293,12 +293,19 @@ func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload 
 // and returns a KeySet that can validate JSON web tokens by fetching
 // JSON web token sets hosted at that remote URL.
 func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
-
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 
-	caCertPool := x509.NewCertPool()
+	var caCertPool *x509.CertPool
 	if cabundle != nil {
-		caCertPool.AppendCertsFromPEM(cabundle)
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(cabundle)
+		caCertPool = pool
+	} else {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
+		caCertPool = pool
 	}
 
 	tr := net.SetTransportDefaults(&http.Transport{
