@@ -16,5 +16,5 @@ then
     exit 1
 fi
 
-test_env_dir=$(setup-envtest use -p path)
+test_env_dir=$(setup-envtest use -p path 1.20.x!)
 KUBEBUILDER_ASSETS="$test_env_dir" go test ./... -v count=1
