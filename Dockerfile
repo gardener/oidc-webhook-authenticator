@@ -22,9 +22,8 @@ COPY webhook/ webhook/
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
 
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static@sha256:b89b98ea1f5bc6e0b48c8be6803a155b2a3532ac6f1e9508a8bcbf99885a9152
+FROM eu.gcr.io/gardener-project/3rd/alpine:3.13.5
+RUN apk --no-cache add ca-certificates
 WORKDIR /
 COPY --from=builder /workspace/oidc-webhook-authenticator .
 USER 65532:65532
