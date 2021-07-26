@@ -12,6 +12,7 @@ import (
 	oscutils "github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/utils"
 
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -24,7 +25,7 @@ func New(mgr manager.Manager) (*extensionswebhook.Webhook, error) {
 
 	fciCodec := oscutils.NewFileContentInlineCodec()
 
-	return controlplane.New(mgr, controlplane.Args{
+	webhook, err := controlplane.New(mgr, controlplane.Args{
 		Kind:  controlplane.KindShoot,
 		Types: []client.Object{&appsv1.Deployment{}},
 		Mutator: genericmutator.NewMutator(
@@ -35,4 +36,20 @@ func New(mgr manager.Manager) (*extensionswebhook.Webhook, error) {
 			logger,
 		),
 	})
+
+	webhook.Selector.MatchExpressions = []v1.LabelSelectorRequirement{
+		{
+			Key:      "shoot.gardener.cloud/authentication",
+			Operator: "In",
+			Values:   []string{"oidc"},
+		},
+	}
+
+	// webhook.Selector.MatchLabels = map[string]string{
+	// 	"app":                 "kubernetes",
+	// 	"gardener.cloud/role": "controlplane",
+	// 	"role":                "apiserver",
+	// }
+
+	return webhook, err
 }

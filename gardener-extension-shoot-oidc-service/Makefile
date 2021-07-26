@@ -17,7 +17,7 @@ IGNORE_OPERATION_ANNOTATION := true
 WEBHOOK_CONFIG_PORT	:= 8449
 WEBHOOK_CONFIG_MODE	:= url
 WEBHOOK_CONFIG_URL	:= host.docker.internal:$(WEBHOOK_CONFIG_PORT)
-EXTENSION_NAMESPACE	:=
+EXTENSION_NAMESPACE	:= 
 
 WEBHOOK_PARAM := --webhook-config-url=$(WEBHOOK_CONFIG_URL)
 ifeq ($(WEBHOOK_CONFIG_MODE), service)
@@ -46,6 +46,14 @@ start:
 install:
 	@LD_FLAGS="-w -X github.com/gardener/$(EXTENSION_PREFIX)-$(NAME)/pkg/version.Version=$(VERSION)" \
 	$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install.sh ./...
+
+.PHONY: docker-login
+docker-login:
+	@gcloud auth activate-service-account --key-file .kube-secrets/gcr/gcr-readwrite.json
+
+.PHONY: docker-images
+docker-images:
+	@docker build -t $(IMAGE_PREFIX)/$(NAME):$(VERSION) -t $(IMAGE_PREFIX)/$(NAME):latest -f Dockerfile -m 6g --target $(EXTENSION_PREFIX)-$(NAME) .
 
 #####################################################################
 # Rules for verification, formatting, linting, testing and cleaning #
