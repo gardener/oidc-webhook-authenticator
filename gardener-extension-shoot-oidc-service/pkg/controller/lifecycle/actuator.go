@@ -6,6 +6,7 @@ package lifecycle
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
@@ -24,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -48,14 +50,9 @@ const (
 	WebhookTLSecretName       = SeedResourcesName + "-tls"
 	ManagedResourceNamesSeed  = service.ExtensionServiceName + "-seed"
 	ManagedResourceNamesShoot = service.ExtensionServiceName + "-shoot"
-	// TODO check if these are needed
-	// KeptShootResourcesName is the name for resource describing the resources applied to the shoot cluster that should not be deleted.
-	// KeptShootResourcesName = service.ExtensionServiceName + "-shoot-keep"
-	// OwnerName is the name of the OIDCOwner object created for the shoot oidc service
-	// OwnerName = service.ServiceName
 )
 
-// go:embed authentication.gardener.cloud_openidconnects.yaml
+//go:embed authentication.gardener.cloud_openidconnects.yaml
 var crdContent string
 
 // NewActuator returns an actuator responsible for Extension resources.
@@ -85,22 +82,192 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 
 	// validate
 
-	if !controller.IsHibernated(cluster) {
-		return a.Delete(ctx, ex)
+	var oidcReplicas int32 = 2
+	if controller.IsHibernated(cluster) {
+		oidcReplicas = 0
 	}
 
-	registry := managedresources.NewRegistry(kubernetes.SeedScheme, kubernetes.SeedCodec, kubernetes.SeedSerializer)
+	seedResources, err := getSeedResources(oidcReplicas, namespace)
 
+	if err != nil {
+		return err
+	}
+
+	_, err = a.getOrCreateTLSSecret(ctx, secrets.CertificateSecretConfig{
+		Name:       WebhookTLSecretName,
+		CommonName: SeedResourcesName,
+		DNSNames: []string{
+			SeedResourcesName,
+			fmt.Sprintf("%s.%s", SeedResourcesName, namespace),
+			fmt.Sprintf("%s.%s.svc", SeedResourcesName, namespace),
+			fmt.Sprintf("%s.%s.svc.cluster.local", SeedResourcesName, namespace),
+		},
+	}, namespace)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = util.GetOrCreateShootKubeconfig(ctx, a.client, secrets.CertificateSecretConfig{
+		Name:       ShootResourcesName,
+		CommonName: SeedResourcesName,
+	}, namespace)
+
+	if err != nil {
+		return err
+	}
+
+	if err := managedresources.CreateForSeed(ctx, a.client, namespace, ManagedResourceNamesSeed, false, seedResources); err != nil {
+		return err
+	}
+
+	shootResources, err := getShootResources()
+	if err != nil {
+		return err
+	}
+
+	if err := managedresources.CreateForShoot(ctx, a.client, namespace, ManagedResourceNamesShoot, false, shootResources); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Delete the Extension resource.
+func (a *actuator) Delete(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
+	namespace := ex.GetNamespace()
+
+	if err := managedresources.DeleteForSeed(ctx, a.client, namespace, ManagedResourceNamesSeed); err != nil {
+		return err
+	}
+	if err := managedresources.DeleteForShoot(ctx, a.client, namespace, ManagedResourceNamesShoot); err != nil {
+		return err
+	}
+
+	if err := a.client.Delete(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ShootResourcesName,
+			Namespace: namespace,
+		},
+	}); err != nil {
+		return err
+	}
+
+	if err := a.client.Delete(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      WebhookTLSecretName,
+			Namespace: namespace,
+		},
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Restore the Extension resource.
+func (a *actuator) Restore(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
+	return a.Reconcile(ctx, ex)
+}
+
+// Migrate the Extension resource.
+func (a *actuator) Migrate(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
+	// Keep objects for shoot managed resources so that they are not deleted from the shoot during the migration
+
+	return a.Delete(ctx, ex)
+}
+
+// InjectConfig injects the rest config to this actuator.
+func (a *actuator) InjectConfig(config *rest.Config) error {
+	a.config = config
+	return nil
+}
+
+// InjectClient injects the controller runtime client into the reconciler.
+func (a *actuator) InjectClient(client client.Client) error {
+	a.client = client
+	return nil
+}
+
+// InjectScheme injects the given scheme into the reconciler.
+func (a *actuator) InjectScheme(scheme *runtime.Scheme) error {
+	a.decoder = serializer.NewCodecFactory(scheme, serializer.EnableStrict).UniversalDecoder()
+	return nil
+}
+
+func (a *actuator) getOrCreateTLSSecret(ctx context.Context, certificateConfig secrets.CertificateSecretConfig, namespace string) (*corev1.Secret, error) {
+	caSecret, ca, err := secrets.LoadCAFromSecret(ctx, a.client, namespace, v1beta1constants.SecretNameCACluster)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching CA secret %s/%s: %v", namespace, v1beta1constants.SecretNameCACluster, err)
+	}
+
+	var (
+		secret = corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: make(map[string]string),
+				Name:        certificateConfig.Name,
+				Namespace:   namespace,
+			},
+		}
+		key = types.NamespacedName{
+			Name:      certificateConfig.Name,
+			Namespace: namespace,
+		}
+	)
+	if err := a.client.Get(ctx, key, &secret); client.IgnoreNotFound(err) != nil {
+		return nil, fmt.Errorf("error preparing kubeconfig: %v", err)
+	}
+
+	var (
+		computedChecksum   = utils.ComputeChecksum(caSecret.Data)
+		storedChecksum, ok = secret.Annotations[util.CAChecksumAnnotation]
+	)
+	if ok && computedChecksum == storedChecksum {
+		return &secret, nil
+	}
+
+	certificateConfig.SigningCA = ca
+	certificateConfig.CertType = secrets.ServerCert
+
+	config := secrets.ControlPlaneSecretConfig{
+		CertificateSecretConfig: &certificateConfig,
+	}
+
+	controlPlane, err := config.GenerateControlPlane()
+	if err != nil {
+		return nil, fmt.Errorf("error creating kubeconfig: %v", err)
+	}
+
+	_, err = controllerutil.CreateOrUpdate(ctx, a.client, &secret, func() error {
+		secret.Data = controlPlane.SecretData()
+		if secret.Annotations == nil {
+			secret.Annotations = make(map[string]string)
+		}
+		secret.Annotations[util.CAChecksumAnnotation] = computedChecksum
+		return nil
+	})
+
+	return &secret, err
+}
+
+func getLabels() map[string]string {
+	return map[string]string{
+		"app": SeedResourcesName,
+	}
+}
+
+func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, error) {
 	var (
 		tcpProto  = corev1.ProtocolTCP
 		port10443 = intstr.FromInt(10443)
+		registry  = managedresources.NewRegistry(kubernetes.SeedScheme, kubernetes.SeedCodec, kubernetes.SeedSerializer)
 	)
 
 	kubeConfig := &configv1.Config{
 		Clusters: []configv1.NamedCluster{{
 			Name: SeedResourcesName,
 			Cluster: configv1.Cluster{
-				Server:               fmt.Sprintf("https://%s", SeedResourcesName),
+				Server:               fmt.Sprintf("https://%s/%s", SeedResourcesName, "validate-token"),
 				CertificateAuthority: "/srv/kubernetes/ca/ca.crt",
 			},
 		}},
@@ -122,7 +289,7 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 
 	kubeAPIServerKubeConfig, err := runtime.Encode(configlatest.Codec, kubeConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resources, err := registry.AddAllAndSerialize(
@@ -133,6 +300,26 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 				Labels:    getLabels(),
 			},
 		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      SeedResourcesName,
+				Namespace: namespace,
+				Labels:    getLabels(),
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     "system:auth-delegator",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					APIGroup:  "",
+					Kind:      "ServiceAccount",
+					Name:      SeedResourcesName,
+					Namespace: namespace,
+				},
+			},
+		},
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      SeedResourcesName,
@@ -140,7 +327,7 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 				Labels:    getLabels(),
 			},
 			Spec: appsv1.DeploymentSpec{
-				Replicas:             pointer.Int32Ptr(2),
+				Replicas:             pointer.Int32Ptr(oidcReplicas),
 				RevisionHistoryLimit: pointer.Int32Ptr(1),
 				Selector:             &metav1.LabelSelector{MatchLabels: getLabels()},
 				Strategy: appsv1.DeploymentStrategy{
@@ -176,14 +363,14 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 						ServiceAccountName: SeedResourcesName,
 						Containers: []corev1.Container{{
 							Name:            SeedResourcesName,
-							Image:           "eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:latest", // TODO pass this
-							ImagePullPolicy: corev1.PullAlways,                                                       // TODO: change to PullIfNotPresent
+							Image:           "eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-62b406c497468341cc0e5b81801444d0718ccd41", // TODO pass this
+							ImagePullPolicy: corev1.PullAlways,                                                                                                    // TODO: change to PullIfNotPresent
 							Args: []string{
 								//	"--authorization-kubeconfig=/var/run/oidc-webhook-authenticator/seed/kubeconfig",   // TODO export into const
 								//	"--authentication-kubeconfig==/var/run/oidc-webhook-authenticator/seed/kubeconfig", // TODO export into const
-								"--kubeconfig=/var/run/oidc-webhook-authenticator/shoot/kubeconfig",      // TODO export into const
-								"--tls-cert-file=/var/run/oidc-webhook-authenticator/tls/tls.crt",        // TODO export into const
-								"--tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/tls.key", // TODO export into const
+								"--kubeconfig=/var/run/oidc-webhook-authenticator/shoot/kubeconfig", // TODO export into const
+								fmt.Sprintf("--tls-cert-file=/var/run/oidc-webhook-authenticator/tls/%s.crt", WebhookTLSecretName),
+								fmt.Sprintf("--tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/%s.key", WebhookTLSecretName),
 								"--authentication-skip-lookup=true",
 								"--authorization-always-allow-paths=/validate-token",
 							},
@@ -293,146 +480,74 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 			},
 		},
 	)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = a.getOrCreateTLSSecret(ctx, secrets.CertificateSecretConfig{
-		Name:       WebhookTLSecretName,
-		CommonName: service.SecretName,
-		DNSNames: []string{
-			service.SecretName,
-			fmt.Sprintf("%s.%s", service.SecretName, namespace),
-			fmt.Sprintf("%s.%s.svc", service.SecretName, namespace),
-			fmt.Sprintf("%s.%s.svc.cluster.local", service.SecretName, namespace),
-		},
-	}, namespace)
-	if err != nil {
-		return err
-	}
-
-	_, err = util.GetOrCreateShootKubeconfig(ctx, a.client, secrets.CertificateSecretConfig{
-		Name:       ShootResourcesName,
-		CommonName: SeedResourcesName,
-	}, namespace)
-	if err != nil {
-		return err
-	}
-
-	if err := managedresources.CreateForSeed(ctx, a.client, namespace, ManagedResourceNamesSeed, false, resources); err != nil {
-		return err
-	}
-
-	if err := managedresources.CreateForShoot(ctx, a.client, namespace, ManagedResourceNamesShoot, false, map[string][]byte{
-		"crd.yaml": []byte(crdContent),
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	return resources, nil
 }
 
-// Delete the Extension resource.
-func (a *actuator) Delete(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
-	namespace := ex.GetNamespace()
-
-	if err := managedresources.DeleteForSeed(ctx, a.client, namespace, ManagedResourceNamesSeed); err != nil {
-		return err
-	}
-	if err := managedresources.DeleteForShoot(ctx, a.client, namespace, ManagedResourceNamesShoot); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Restore the Extension resource.
-func (a *actuator) Restore(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
-	return a.Reconcile(ctx, ex)
-}
-
-// Migrate the Extension resource.
-func (a *actuator) Migrate(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
-	// Keep objects for shoot managed resources so that they are not deleted from the shoot during the migration
-
-	return a.Delete(ctx, ex)
-}
-
-// InjectConfig injects the rest config to this actuator.
-func (a *actuator) InjectConfig(config *rest.Config) error {
-	a.config = config
-	return nil
-}
-
-// InjectClient injects the controller runtime client into the reconciler.
-func (a *actuator) InjectClient(client client.Client) error {
-	a.client = client
-	return nil
-}
-
-// InjectScheme injects the given scheme into the reconciler.
-func (a *actuator) InjectScheme(scheme *runtime.Scheme) error {
-	a.decoder = serializer.NewCodecFactory(scheme, serializer.EnableStrict).UniversalDecoder()
-	return nil
-}
-
-func (a *actuator) getOrCreateTLSSecret(ctx context.Context, certificateConfig secrets.CertificateSecretConfig, namespace string) (*corev1.Secret, error) {
-	caSecret, ca, err := secrets.LoadCAFromSecret(ctx, a.client, namespace, v1beta1constants.SecretNameCACluster)
-	if err != nil {
-		return nil, fmt.Errorf("error fetching CA secret %s/%s: %v", namespace, v1beta1constants.SecretNameCACluster, err)
-	}
-
-	var (
-		secret = corev1.Secret{
+func getShootResources() (map[string][]byte, error) {
+	shootRegistry := managedresources.NewRegistry(kubernetes.ShootScheme, kubernetes.ShootCodec, kubernetes.ShootSerializer)
+	shootResources, err := shootRegistry.AddAllAndSerialize(
+		&rbacv1.ClusterRole{
+			// TODO change name and conventions
 			ObjectMeta: metav1.ObjectMeta{
-				Annotations: make(map[string]string),
-				Name:        certificateConfig.Name,
-				Namespace:   namespace,
+				Name:   ShootResourcesName,
+				Labels: getLabels(),
 			},
-		}
-		key = types.NamespacedName{
-			Name:      certificateConfig.Name,
-			Namespace: namespace,
-		}
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"authentication.gardener.cloud"},
+					Verbs:     []string{"get", "list", "watch"},
+					Resources: []string{"openidconnects"},
+				},
+			},
+		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   ShootResourcesName,
+				Labels: getLabels(),
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     ShootResourcesName,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "User",
+					Name:     SeedResourcesName,
+				},
+			},
+		},
+		&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      ShootResourcesName,
+				Namespace: "kube-system",
+				Labels:    getLabels(),
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     "extension-apiserver-authentication-reader",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "User",
+					Name:     SeedResourcesName,
+				},
+			},
+		},
 	)
-	if err := a.client.Get(ctx, key, &secret); client.IgnoreNotFound(err) != nil {
-		return nil, fmt.Errorf("error preparing kubeconfig: %v", err)
-	}
 
-	var (
-		computedChecksum   = utils.ComputeChecksum(caSecret.Data)
-		storedChecksum, ok = secret.Annotations[util.CAChecksumAnnotation]
-	)
-	if ok && computedChecksum == storedChecksum {
-		return &secret, nil
-	}
-
-	certificateConfig.SigningCA = ca
-	certificateConfig.CertType = secrets.ClientCert
-
-	config := secrets.ControlPlaneSecretConfig{
-		CertificateSecretConfig: &certificateConfig,
-	}
-
-	controlPlane, err := config.GenerateControlPlane()
 	if err != nil {
-		return nil, fmt.Errorf("error creating kubeconfig: %v", err)
+		return nil, err
 	}
 
-	_, err = controllerutil.CreateOrUpdate(ctx, a.client, &secret, func() error {
-		secret.Data = controlPlane.SecretData()
-		if secret.Annotations == nil {
-			secret.Annotations = make(map[string]string)
-		}
-		secret.Annotations[util.CAChecksumAnnotation] = computedChecksum
-		return nil
-	})
-
-	return &secret, err
-}
-
-func getLabels() map[string]string {
-	return map[string]string{
-		"app": SeedResourcesName,
-	}
+	shootResources["crd.yaml"] = []byte(crdContent)
+	return shootResources, nil
 }

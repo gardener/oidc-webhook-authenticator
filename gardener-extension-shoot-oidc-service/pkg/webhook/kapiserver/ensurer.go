@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator"
 	"github.com/gardener/oidc-webhook-authenticator/gardener-extension-shoot-oidc-service/pkg/controller/lifecycle"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,7 +21,6 @@ import (
 
 const (
 	shootKubeConfgVolumeName = "oidc-authenticator-shoot-kubeconfig"
-	tlsVolumeName            = "oidc-authenticator-tls"
 )
 
 type ensurer struct {
@@ -41,7 +41,7 @@ func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, _ gcontext.
 	template := &new.Spec.Template
 	ps := &template.Spec
 
-	if c := extensionswebhook.ContainerWithName(ps.Containers, "kube-apiserver"); c != nil {
+	if c := extensionswebhook.ContainerWithName(ps.Containers, v1beta1constants.DeploymentNameKubeAPIServer); c != nil {
 		c.Command = extensionswebhook.EnsureStringWithPrefix(c.Command, "--authentication-token-webhook-config-file=", "/var/run/gardener/oidc-webhook/kubeconfig")
 		c.Command = extensionswebhook.EnsureStringWithPrefix(c.Command, "--authentication-token-webhook-cache-ttl=", "10s")
 
@@ -49,12 +49,6 @@ func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, _ gcontext.
 			Name:      shootKubeConfgVolumeName,
 			ReadOnly:  true,
 			MountPath: "/var/run/gardener/oidc-webhook",
-		})
-
-		c.VolumeMounts = extensionswebhook.EnsureVolumeMountWithName(c.VolumeMounts, corev1.VolumeMount{
-			Name:      tlsVolumeName,
-			ReadOnly:  true,
-			MountPath: "/var/run/gardener/oidc-webhook-tls",
 		})
 
 		ps.Volumes = extensionswebhook.EnsureVolumeWithName(ps.Volumes, corev1.Volume{
@@ -68,14 +62,6 @@ func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, _ gcontext.
 			},
 		})
 
-		ps.Volumes = extensionswebhook.EnsureVolumeWithName(ps.Volumes, corev1.Volume{
-			Name: tlsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: lifecycle.WebhookTLSecretName,
-				},
-			},
-		})
 	}
 
 	return nil

@@ -13,7 +13,7 @@ import (
 )
 
 // ExtensionName is the name of the extension.
-const ExtensionName = "extension-oidc-authenticator"
+const ExtensionName = "shoot-oidc-service"
 
 // Options holds configuration passed to the OIDC Service controller.
 type Options struct {
