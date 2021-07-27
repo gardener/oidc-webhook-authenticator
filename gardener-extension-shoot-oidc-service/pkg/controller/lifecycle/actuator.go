@@ -46,10 +46,15 @@ const (
 	// SeedResourcesName is the name for resource describing the resources applied to the seed cluster.
 	SeedResourcesName = "oidc-webhook-authenticator"
 	// ShootResourcesName is the name for resource describing the resources applied to the shoot cluster.
-	ShootResourcesName        = SeedResourcesName + "-shoot"
-	WebhookTLSecretName       = SeedResourcesName + "-tls"
-	ManagedResourceNamesSeed  = service.ExtensionServiceName + "-seed"
+	ShootResourcesName = SeedResourcesName + "-shoot"
+	// WebhookTLSecretName is the name of the TLS secret resource used by the OIDC webhook in the seed cluster.
+	WebhookTLSecretName = SeedResourcesName + "-tls"
+	// ManagedResourceNamesSeed is the name used to describe the managed seed resources.
+	ManagedResourceNamesSeed = service.ExtensionServiceName + "-seed"
+	// ManagedResourceNamesShoot is the name used to describe the managed shoot resources.
 	ManagedResourceNamesShoot = service.ExtensionServiceName + "-shoot"
+	// ShootRBACName is the name of the RBAC resources created in the shoot cluster.
+	ShootRBACName = "extensions.gardener.cloud:extension-shoot-oidc-service:shoot"
 )
 
 //go:embed authentication.gardener.cloud_openidconnects.yaml
@@ -366,8 +371,6 @@ func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, 
 							Image:           "eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-62b406c497468341cc0e5b81801444d0718ccd41", // TODO pass this
 							ImagePullPolicy: corev1.PullAlways,                                                                                                    // TODO: change to PullIfNotPresent
 							Args: []string{
-								//	"--authorization-kubeconfig=/var/run/oidc-webhook-authenticator/seed/kubeconfig",   // TODO export into const
-								//	"--authentication-kubeconfig==/var/run/oidc-webhook-authenticator/seed/kubeconfig", // TODO export into const
 								"--kubeconfig=/var/run/oidc-webhook-authenticator/shoot/kubeconfig", // TODO export into const
 								fmt.Sprintf("--tls-cert-file=/var/run/oidc-webhook-authenticator/tls/%s.crt", WebhookTLSecretName),
 								fmt.Sprintf("--tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/%s.key", WebhookTLSecretName),
@@ -384,11 +387,6 @@ func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, 
 									ReadOnly:  true,
 									MountPath: "/var/run/oidc-webhook-authenticator/shoot", // TODO export into const
 								},
-								//  {
-								// 	Name:      "seed-kubeconfig",
-								// 	ReadOnly:  true,
-								// 	MountPath: "/var/run/oidc-webhook-authenticator/seed", // TODO export into const
-								// },
 							},
 						}},
 						Volumes: []corev1.Volume{
@@ -408,14 +406,6 @@ func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, 
 									},
 								},
 							},
-							// {
-							// 	Name: "seed-kubeconfig",
-							// 	VolumeSource: corev1.VolumeSource{
-							// 		Secret: &corev1.SecretVolumeSource{
-							// 			SecretName: ShootResourcesName,
-							// 		},
-							// 	},
-							// },
 						},
 					},
 				},
@@ -492,9 +482,11 @@ func getShootResources() (map[string][]byte, error) {
 	shootRegistry := managedresources.NewRegistry(kubernetes.ShootScheme, kubernetes.ShootCodec, kubernetes.ShootSerializer)
 	shootResources, err := shootRegistry.AddAllAndSerialize(
 		&rbacv1.ClusterRole{
-			// TODO change name and conventions
+			// TODO add labels to resources
+			// app.kubernetes.io/instance: {{ .Release.Name }}
+			// app.kubernetes.io/managed-by: {{ .Release.Service }}
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   ShootResourcesName,
+				Name:   ShootRBACName,
 				Labels: getLabels(),
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -507,13 +499,13 @@ func getShootResources() (map[string][]byte, error) {
 		},
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   ShootResourcesName,
+				Name:   ShootRBACName,
 				Labels: getLabels(),
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     ShootResourcesName,
+				Name:     ShootRBACName,
 			},
 			Subjects: []rbacv1.Subject{
 				{
@@ -525,7 +517,7 @@ func getShootResources() (map[string][]byte, error) {
 		},
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      ShootResourcesName,
+				Name:      ShootRBACName,
 				Namespace: "kube-system",
 				Labels:    getLabels(),
 			},

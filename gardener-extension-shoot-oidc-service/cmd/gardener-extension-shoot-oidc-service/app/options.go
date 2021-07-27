@@ -35,8 +35,6 @@ func NewOptions() *Options {
 		Namespace: os.Getenv("WEBHOOK_CONFIG_NAMESPACE"),
 	}
 
-	// TODO
-	// not sure if this will be registered automatically or will require manual deploy of mutatingwebhookconfiguration
 	webhookSwitches := oidccmd.WebhookSwitchOptions()
 	webhookOptions := webhookcmd.NewAddToManagerOptions(ExtensionName, webhookServerOptions, webhookSwitches)
 
