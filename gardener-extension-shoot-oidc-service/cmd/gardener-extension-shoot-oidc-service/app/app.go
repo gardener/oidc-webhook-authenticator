@@ -67,7 +67,6 @@ func (o *Options) run(ctx context.Context) error {
 		return fmt.Errorf("could not update manager scheme: %s", err)
 	}
 
-	// TODO install
 	// TODO Should I install v1alphav1 from oidc-webhook-authenticator?
 
 	ctrlConfig := o.oidcOptions.Completed()

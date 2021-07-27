@@ -76,8 +76,6 @@ func (o *OIDCServiceOptions) Complete() error {
 		return err
 	}
 
-	// TODO Validate configuration
-
 	o.config = &OIDCServiceConfig{
 		config: config,
 	}
