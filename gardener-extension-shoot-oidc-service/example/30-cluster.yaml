@@ -1,0 +1,38 @@
+---
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Cluster
+metadata:
+  name: shoot--foo--bar
+spec:
+  cloudProfile:
+    apiVersion: core.gardener.cloud/v1beta1
+    kind: CloudProfile
+  seed:
+    apiVersion: core.gardener.cloud/v1beta1
+    kind: Seed
+  shoot:
+    apiVersion: core.gardener.cloud/v1beta1
+    kind: Shoot
+    metadata:
+      generation: 1
+      name: shoot--foo--bar
+    spec:
+      dns:
+        domain: foo.bar.example.com
+      kubernetes:
+        version: 1.18.2
+      resources:
+        - name: issuer-custom-eab-hmackey
+          resourceRef:
+            apiVersion: v1
+            kind: Secret
+            name: some-issuer-custom-eab-hmackey
+        - name: custom-privatekey
+          resourceRef:
+            apiVersion: v1
+            kind: Secret
+            name: some-custom-privatekey
+    status:
+      lastOperation:
+        state: Succeeded
+      observedGeneration: 1

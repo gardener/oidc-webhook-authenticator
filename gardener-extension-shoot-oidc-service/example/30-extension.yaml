@@ -1,0 +1,7 @@
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Extension
+metadata:
+  name: shoot-oidc-service
+  namespace: shoot--foo--bar
+spec:
+  type: shoot-oidc-service

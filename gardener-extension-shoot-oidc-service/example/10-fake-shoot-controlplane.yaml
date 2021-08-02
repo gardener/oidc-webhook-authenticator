@@ -1,0 +1,186 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shoot--foo--bar
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: garden
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etcd
+  namespace: shoot--foo--bar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: etcd
+  template:
+    metadata:
+      labels:
+        run: etcd
+    spec:
+      containers:
+      - image: quay.io/coreos/etcd:v3.3.12
+        name: etcd
+        command:
+        - etcd
+        - -advertise-client-urls=http://0.0.0.0:2379
+        - -listen-client-urls=http://0.0.0.0:2379
+        - -data-dir=/etcd-data
+        volumeMounts:
+        - mountPath: /etcd-data
+          name: data
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: shoot--foo--bar
+spec:
+  ports:
+  - port: 2379
+  selector:
+    run: etcd
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ca
+  namespace: shoot--foo--bar
+type: Opaque
+data:
+  ca.crt: <ca-base64-encoded>
+  ca.key: <ca-key-base64-encoded>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kube-apiserver
+  namespace: shoot--foo--bar
+type: Opaque
+data:
+  kube-apiserver.crt: <kube-apiserver-crt-base64-encoded>
+  kube-apiserver.key: <kube-apiserver-key-base64-encoded>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gardener
+  namespace: shoot--foo--bar
+type: Opaque
+data:
+  ca.crt: <ca-base64-encoded>
+  gardener.crt: <gardener-crt-base64-encoded>
+  gardener.key: <gardener-key-base64-encoded>
+  kubeconfig: <kubeconfig-base64-encoded>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-apiserver
+  namespace: shoot--foo--bar
+spec:
+  ports:
+  - name: kube-apiserver
+    nodePort: 32223
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: kubernetes
+    role: apiserver
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kubernetes
+    role: apiserver
+  name: kube-apiserver
+  namespace: shoot--foo--bar
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: kubernetes
+      role: apiserver
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: kubernetes
+        role: apiserver
+    spec:
+      containers:
+      - command:
+        - /hyperkube
+        - kube-apiserver
+        - --enable-admission-plugins=Priority,NamespaceLifecycle,LimitRanger,PodSecurityPolicy,ServiceAccount,NodeRestriction,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota,StorageObjectInUseProtection,MutatingAdmissionWebhook,ValidatingAdmissionWebhook
+        - --disable-admission-plugins=PersistentVolumeLabel
+        - --allow-privileged=true
+        - --anonymous-auth=false
+        - --authorization-mode=Node,RBAC
+        - --client-ca-file=/srv/kubernetes/ca/ca.crt
+        - --enable-aggregator-routing=true
+        - --enable-bootstrap-token-auth=true
+        - --http2-max-streams-per-connection=1000
+        - --endpoint-reconciler-type=none
+        - --etcd-servers=http://etcd:2379
+        - --kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP
+        - --insecure-port=0
+        - --profiling=false
+        - --secure-port=443
+        - --service-cluster-ip-range=100.64.0.0/13
+        - --tls-cert-file=/srv/kubernetes/apiserver/kube-apiserver.crt
+        - --tls-private-key-file=/srv/kubernetes/apiserver/kube-apiserver.key
+        - --v=2
+        image: k8s.gcr.io/hyperkube:v1.15.1
+        imagePullPolicy: IfNotPresent
+        name: kube-apiserver
+        ports:
+        - containerPort: 443
+          name: https
+          protocol: TCP
+        - containerPort: 8080
+          name: local
+          protocol: TCP
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /srv/kubernetes/ca
+          name: ca
+        - mountPath: /srv/kubernetes/apiserver
+          name: kube-apiserver
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      volumes:
+      - name: ca
+        secret:
+          defaultMode: 420
+          secretName: ca
+      - name: kube-apiserver
+        secret:
+          defaultMode: 420
+          secretName: kube-apiserver
