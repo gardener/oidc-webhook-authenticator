@@ -1,0 +1,8 @@
+apiVersion: authentication.gardener.cloud/v1alpha1
+kind: OpenIDConnect
+metadata:
+  name: foo-bar
+spec:
+  issuerURL: https://some-identity-provider-abc.com
+  clientID: foo-bar
+  usernameClaim: email
