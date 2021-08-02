@@ -37,6 +37,7 @@ func New(mgr manager.Manager) (*extensionswebhook.Webhook, error) {
 		),
 	})
 
+	// TODO change this selector
 	webhook.Selector.MatchExpressions = []v1.LabelSelectorRequirement{
 		{
 			Key:      "shoot.gardener.cloud/authentication",

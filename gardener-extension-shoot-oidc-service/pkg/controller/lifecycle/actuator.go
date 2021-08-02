@@ -19,8 +19,8 @@ import (
 	managedresources "github.com/gardener/gardener/pkg/utils/managedresources"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 	"github.com/gardener/oidc-webhook-authenticator/gardener-extension-shoot-oidc-service/pkg/apis/config"
+	"github.com/gardener/oidc-webhook-authenticator/gardener-extension-shoot-oidc-service/pkg/imagevector"
 	"github.com/gardener/oidc-webhook-authenticator/gardener-extension-shoot-oidc-service/pkg/service"
-
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -49,12 +49,12 @@ const (
 	ShootResourcesName = SeedResourcesName + "-shoot"
 	// WebhookTLSecretName is the name of the TLS secret resource used by the OIDC webhook in the seed cluster.
 	WebhookTLSecretName = SeedResourcesName + "-tls"
-	// ManagedResourceNamesSeed is the name used to describe the managed seed resources.
-	ManagedResourceNamesSeed = service.ExtensionServiceName + "-seed"
-	// ManagedResourceNamesShoot is the name used to describe the managed shoot resources.
-	ManagedResourceNamesShoot = service.ExtensionServiceName + "-shoot"
 	// ShootRBACName is the name of the RBAC resources created in the shoot cluster.
 	ShootRBACName = "extensions.gardener.cloud:extension-shoot-oidc-service:shoot"
+	// WebhookTLSCertDir is the directory used for mounting the webhook certificates.
+	WebhookTLSCertDir = "/var/run/oidc-webhook-authenticator/tls"
+	// WebhookShootConfigDir is the directory used for mounting the shoot kubeconfig.
+	WebhookShootConfigDir = "/var/run/oidc-webhook-authenticator/shoot"
 )
 
 //go:embed authentication.gardener.cloud_openidconnects.yaml
@@ -122,7 +122,7 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 		return err
 	}
 
-	if err := managedresources.CreateForSeed(ctx, a.client, namespace, ManagedResourceNamesSeed, false, seedResources); err != nil {
+	if err := managedresources.CreateForSeed(ctx, a.client, namespace, service.ManagedResourceNamesSeed, false, seedResources); err != nil {
 		return err
 	}
 
@@ -131,7 +131,7 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 		return err
 	}
 
-	if err := managedresources.CreateForShoot(ctx, a.client, namespace, ManagedResourceNamesShoot, false, shootResources); err != nil {
+	if err := managedresources.CreateForShoot(ctx, a.client, namespace, service.ManagedResourceNamesShoot, false, shootResources); err != nil {
 		return err
 	}
 
@@ -140,12 +140,13 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 
 // Delete the Extension resource.
 func (a *actuator) Delete(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
+	// TODO remove kube-apiserver mutation
 	namespace := ex.GetNamespace()
 
-	if err := managedresources.DeleteForSeed(ctx, a.client, namespace, ManagedResourceNamesSeed); err != nil {
+	if err := managedresources.DeleteForSeed(ctx, a.client, namespace, service.ManagedResourceNamesSeed); err != nil {
 		return err
 	}
-	if err := managedresources.DeleteForShoot(ctx, a.client, namespace, ManagedResourceNamesShoot); err != nil {
+	if err := managedresources.DeleteForShoot(ctx, a.client, namespace, service.ManagedResourceNamesShoot); err != nil {
 		return err
 	}
 
@@ -297,6 +298,11 @@ func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, 
 		return nil, err
 	}
 
+	image, err := imagevector.ImageVector().FindImage(service.ImageName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find image version for %s: %v", service.ImageName, err)
+	}
+
 	resources, err := registry.AddAllAndSerialize(
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -368,12 +374,12 @@ func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, 
 						ServiceAccountName: SeedResourcesName,
 						Containers: []corev1.Container{{
 							Name:            SeedResourcesName,
-							Image:           "eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-62b406c497468341cc0e5b81801444d0718ccd41", // TODO pass this
-							ImagePullPolicy: corev1.PullAlways,                                                                                                    // TODO: change to PullIfNotPresent
+							Image:           image.String(),
+							ImagePullPolicy: corev1.PullAlways,
 							Args: []string{
-								"--kubeconfig=/var/run/oidc-webhook-authenticator/shoot/kubeconfig", // TODO export into const
-								fmt.Sprintf("--tls-cert-file=/var/run/oidc-webhook-authenticator/tls/%s.crt", WebhookTLSecretName),
-								fmt.Sprintf("--tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/%s.key", WebhookTLSecretName),
+								fmt.Sprintf("--kubeconfig=%s/kubeconfig", WebhookShootConfigDir),
+								fmt.Sprintf("--tls-cert-file=%s/%s.crt", WebhookTLSCertDir, WebhookTLSecretName),
+								fmt.Sprintf("--tls-private-key-file=%s/%s.key", WebhookTLSCertDir, WebhookTLSecretName),
 								"--authentication-skip-lookup=true",
 								"--authorization-always-allow-paths=/validate-token",
 							},
@@ -381,11 +387,11 @@ func getSeedResources(oidcReplicas int32, namespace string) (map[string][]byte, 
 								{
 									Name:      "tls",
 									ReadOnly:  true,
-									MountPath: "/var/run/oidc-webhook-authenticator/tls", // TODO export into const
+									MountPath: WebhookTLSCertDir,
 								}, {
 									Name:      "shoot-kubeconfig",
 									ReadOnly:  true,
-									MountPath: "/var/run/oidc-webhook-authenticator/shoot", // TODO export into const
+									MountPath: WebhookShootConfigDir,
 								},
 							},
 						}},

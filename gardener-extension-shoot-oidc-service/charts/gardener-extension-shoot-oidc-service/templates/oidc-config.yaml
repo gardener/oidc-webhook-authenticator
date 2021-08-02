@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: extension-shoot-oidc-service.config
+  namespace: {{ .Release.Namespace }}	
+data:
+  config.yaml: |
+    apiVersion: shoot-oidc-service.extensions.config.gardener.cloud/v1alpha1
+    kind: Configuration 

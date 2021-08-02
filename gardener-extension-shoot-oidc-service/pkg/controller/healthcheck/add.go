@@ -5,30 +5,32 @@
 package healthcheck
 
 import (
+	"time"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gardener/oidc-webhook-authenticator/gardener-extension-shoot-oidc-service/pkg/controller/lifecycle"
 	"github.com/gardener/oidc-webhook-authenticator/gardener-extension-shoot-oidc-service/pkg/service"
 
-	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/healthcheck"
+	healthcheckconfig "github.com/gardener/gardener/extensions/pkg/controller/healthcheck/config"
 	"github.com/gardener/gardener/extensions/pkg/controller/healthcheck/general"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-// DefaultAddOptions contains configuration for the health check controller.
-var DefaultAddOptions = healthcheck.DefaultAddArgs{}
+var (
+	defaultSyncPeriod = time.Second * 30
+	// DefaultAddOptions contains configuration for the health check controller.
+	DefaultAddOptions = healthcheck.DefaultAddArgs{
+		HealthCheckConfig: healthcheckconfig.HealthCheckConfig{SyncPeriod: metav1.Duration{Duration: defaultSyncPeriod}},
+	}
+)
 
 // RegisterHealthChecks registers health checks for each extension resource
 // HealthChecks are grouped by extension (e.g worker), extension.type (e.g aws) and  Health Check Type (e.g SystemComponentsHealthy)
 func RegisterHealthChecks(mgr manager.Manager, opts healthcheck.DefaultAddArgs) error {
-	preCheckFunc := func(_ client.Object, cluster *extensionscontroller.Cluster) bool {
-		// TODO check cluster.shoot.spec
-		return true
-	}
-
 	return healthcheck.DefaultRegistration(
 		service.ExtensionType,
 		extensionsv1alpha1.SchemeGroupVersion.WithKind(extensionsv1alpha1.ExtensionResource),
@@ -40,13 +42,11 @@ func RegisterHealthChecks(mgr manager.Manager, opts healthcheck.DefaultAddArgs) 
 		[]healthcheck.ConditionTypeToHealthCheck{
 			{
 				ConditionType: string(gardencorev1beta1.ShootControlPlaneHealthy),
-				HealthCheck:   general.CheckManagedResource(lifecycle.ManagedResourceNamesSeed),
-				PreCheckFunc:  preCheckFunc,
+				HealthCheck:   general.CheckManagedResource(service.ManagedResourceNamesSeed),
 			},
 			{
 				ConditionType: string(gardencorev1beta1.ShootSystemComponentsHealthy),
-				HealthCheck:   general.CheckManagedResource(lifecycle.ManagedResourceNamesShoot),
-				PreCheckFunc:  preCheckFunc,
+				HealthCheck:   general.CheckManagedResource(service.ManagedResourceNamesShoot),
 			},
 		},
 	)

@@ -21,7 +21,7 @@ const (
 	// Name is the name of the lifecycle controller.
 	Name = "shoot_oidc_service_lifecycle_controller"
 	// FinalizerSuffix is the finalizer suffix for the OIDC Service controller.
-	FinalizerSuffix = service.ExtensionServiceName
+	FinalizerSuffix = service.ExtensionType
 )
 
 // DefaultAddOptions contains configuration for the OIDC service.
