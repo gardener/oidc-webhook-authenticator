@@ -1,0 +1,13 @@
+{{- if .Values.imageVectorOverwrite }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gardener-extension-{{ .Values.serviceName }}-imagevector-overwrite
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gardener-extension-{{ .Values.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  images_overwrite.yaml: |
+{{ .Values.imageVectorOverwrite | indent 4 }}
+{{- end }}

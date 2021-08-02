@@ -1,0 +1,26 @@
+image:
+  repository: eu.gcr.io/gardener-project/gardener/extensions/shoot-oidc-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+serviceName: shoot-oidc-service
+
+resources:
+  requests:
+   cpu: "50m"
+   memory: "64Mi"
+  limits:
+   cpu: "50m"
+   memory: "128Mi"
+
+controllers:
+  lifecycle:
+    concurrentSyncs: 5
+  healthcheck:
+    concurrentSyncs: 5
+  ignoreOperationAnnotation: false
+
+webhookConfig:
+  servicePort: 443
+  serverPort: 10251
+  mode: service
