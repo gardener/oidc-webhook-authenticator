@@ -37,20 +37,14 @@ func New(mgr manager.Manager) (*extensionswebhook.Webhook, error) {
 		),
 	})
 
-	// TODO change this selector
+	// TODO Change this to use v1betaconstants from gardener proj
 	webhook.Selector.MatchExpressions = []v1.LabelSelectorRequirement{
 		{
-			Key:      "shoot.gardener.cloud/authentication",
+			Key:      "extensions.gardener.cloud/shoot-oidc-service",
 			Operator: "In",
-			Values:   []string{"oidc"},
+			Values:   []string{"true"},
 		},
 	}
-
-	// webhook.Selector.MatchLabels = map[string]string{
-	// 	"app":                 "kubernetes",
-	// 	"gardener.cloud/role": "controlplane",
-	// 	"role":                "apiserver",
-	// }
 
 	return webhook, err
 }

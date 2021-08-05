@@ -135,12 +135,28 @@ func (a *actuator) Reconcile(ctx context.Context, ex *extensionsv1alpha1.Extensi
 		return err
 	}
 
+	// patch deployment for kube-apiserver in order to trigger webhook
+	depl := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      v1beta1constants.DeploymentNameKubeAPIServer,
+		},
+	}
+
+	key := client.ObjectKeyFromObject(depl)
+	if err := a.client.Get(ctx, key, depl); err != nil {
+		return err
+	}
+
+	err = a.client.Patch(ctx, depl, client.MergeFrom(depl.DeepCopyObject().(client.Object)))
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // Delete the Extension resource.
 func (a *actuator) Delete(ctx context.Context, ex *extensionsv1alpha1.Extension) error {
-	// TODO remove kube-apiserver mutation
 	namespace := ex.GetNamespace()
 
 	if err := managedresources.DeleteForSeed(ctx, a.client, namespace, service.ManagedResourceNamesSeed); err != nil {

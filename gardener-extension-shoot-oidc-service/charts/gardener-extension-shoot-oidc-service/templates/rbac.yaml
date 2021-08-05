@@ -8,6 +8,17 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 rules:
 - apiGroups:
+  - apps
+  resources:
+  - deployments
+  esourceNames:
+  - kube-apiserver
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+- apiGroups:
   - extensions.gardener.cloud
   resources:
   - clusters
