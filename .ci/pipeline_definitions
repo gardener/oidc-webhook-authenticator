@@ -18,6 +18,12 @@ oidc-webhook-authenticator:
             dockerfile: Dockerfile
             tag_template: ${EFFECTIVE_VERSION}
             tag_as_latest: false
+          gardener-extension-shoot-oidc-service:
+            registry: gcr-readwrite
+            image: eu.gcr.io/gardener-project/gardener/extensions/shoot-oidc-service
+            dockerfile: './gardener-extension-shoot-oidc-service/Dockerfile'
+            tag_template: ${EFFECTIVE_VERSION}
+            tag_as_latest: false
     steps:
       check:
         image: 'golang:1.16'
@@ -31,6 +37,8 @@ oidc-webhook-authenticator:
         publish:
           dockerimages:
             oidc-webhook-authenticator:
+              tag_as_latest: true
+            gardener-extension-shoot-oidc-service:
               tag_as_latest: true
     pull-request:
       traits:
@@ -46,4 +54,6 @@ oidc-webhook-authenticator:
         publish:
           dockerimages:
             oidc-webhook-authenticator:
+              tag_as_latest: false
+            gardener-extension-shoot-oidc-service:
               tag_as_latest: false
