@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,6 +29,7 @@ import (
 type mockAuthRequestHandler struct {
 	returnUser      user.Info
 	isAuthenticated bool
+	issuerURL       string
 	err             error
 }
 
@@ -83,11 +85,11 @@ var _ = Describe("OpenIDConnect controller", func() {
 	Describe("Authentication with Token Authentication handlers", func() {
 		Context("First Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
-				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true}
-				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false}
+				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: "https://control-plane.minikube.internal:31133"}
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://invalid"}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeTrue())
@@ -99,11 +101,28 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		Context("Second Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
-				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false}
-				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true}
+				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "https://invalid"}
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true, issuerURL: "https://control-plane.minikube.internal:31133"}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(isAuthenticated).Should(BeTrue())
+
+				Expect(user2.GetName()).Should(Equal(resp.User.GetName()))
+
+			})
+		})
+
+		Context("Third Token Authenticator Handler Passes", func() {
+			It("Authentication should succeed", func() {
+				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "https://invalid"}
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://control-plane.minikube.internal:31133"}
+				handler3 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true, issuerURL: "https://control-plane.minikube.internal:31133"}
+				authRequestHandler := StoreAuthTokenHandler(handler1, handler2, handler3)
+
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeTrue())
@@ -120,7 +139,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler2 := &mockAuthRequestHandler{}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeFalse())
@@ -133,7 +152,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			It("Authentication should fail", func() {
 
 				authRequestHandler := StoreAuthTokenHandler()
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeFalse())
@@ -146,10 +165,10 @@ var _ = Describe("OpenIDConnect controller", func() {
 			It("Authentication should succeed", func() {
 
 				handler1 := &mockAuthRequestHandler{err: errors.New("first")}
-				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true}
+				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true, issuerURL: "https://control-plane.minikube.internal:31133"}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeTrue())
@@ -165,7 +184,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler2 := &mockAuthRequestHandler{err: errors.New("second")}
 				authRequestHandler := StoreAuthTokenHandler(handler1, handler2)
 
-				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), "foo")
+				resp, isAuthenticated, err := authRequestHandler.AuthenticateToken(context.Background(), jwtValid)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(isAuthenticated).Should(BeFalse())
@@ -229,15 +248,31 @@ var _ = Describe("OpenIDConnect controller", func() {
 	})
 })
 
-func StoreAuthTokenHandler(authTokenHandlers ...authenticator.Token) *unionAuthTokenHandler {
+func StoreAuthTokenHandler(authTokenHandlers ...*mockAuthRequestHandler) *unionAuthTokenHandler {
 	union := unionAuthTokenHandler{}
 	for _, auth := range authTokenHandlers {
 		uuid := uuid.NewUUID()
-		union.handlers.Store(uuid, &authenticatorInfo{
-			Token: auth,
-			name:  string(uuid),
-			uid:   uuid,
-		})
+		if val, ok := union.issuerHandlers.Load(auth.issuerURL); ok {
+			asMap, ok := val.(*sync.Map)
+			if ok {
+				asMap.Store(string(uuid), &authenticatorInfo{
+					Token: auth,
+					name:  string(uuid),
+					uid:   uuid,
+				})
+			} else {
+				// something has gone wrong and the value is not of type sync.Map
+				union.issuerHandlers.Delete(auth.issuerURL)
+			}
+		} else {
+			issuerHandlers := &sync.Map{}
+			issuerHandlers.Store(string(uuid), &authenticatorInfo{
+				Token: auth,
+				name:  string(uuid),
+				uid:   uuid,
+			})
+			union.issuerHandlers.Store(auth.issuerURL, issuerHandlers)
+		}
 	}
 
 	return &union

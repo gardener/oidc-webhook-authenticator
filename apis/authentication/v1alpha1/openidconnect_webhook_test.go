@@ -61,6 +61,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 	Context("create validation", func() {
 		BeforeEach(func() {
 			oidc.Spec.IssuerURL = "https://secure.com"
+			oidc.Spec.ClientID = "some-client-id"
 		})
 
 		It("should return error if issuer url is not starting with https", func() {
@@ -94,17 +95,26 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("keys: Invalid value: \"dGVzdA==\": must be a valid base64 encoded JWKS"))
 		})
+
+		It("should return error for empty clientID", func() {
+			oidc.Spec.ClientID = ""
+			err := oidc.ValidateCreate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("clientID: Invalid value: \"\": must not be empty"))
+		})
 	})
 
 	Context("update validation", func() {
 		BeforeEach(func() {
 			oidc.Spec.IssuerURL = "https://secure.com"
+			oidc.Spec.ClientID = "some-client-id"
 		})
 
 		It("should not return error if new oidc object is valid", func() {
 			newObj := OpenIDConnect{
 				Spec: OIDCAuthenticationSpec{
 					IssuerURL: "https://secure2.com",
+					ClientID:  "some-id",
 				},
 			}
 			err := newObj.ValidateUpdate(&oidc)
@@ -115,6 +125,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			newObj := OpenIDConnect{
 				Spec: OIDCAuthenticationSpec{
 					IssuerURL: "http://notsecure.com",
+					ClientID:  "some-id",
 				},
 			}
 			err := newObj.ValidateUpdate(&oidc)
