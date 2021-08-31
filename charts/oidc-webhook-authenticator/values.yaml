@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+replicaCount: 2
+
+virtualGarden:
+  enabled: false
+
+image:
+  repository: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
+  tag: v0.1.0-dev-62b406c497468341cc0e5b81801444d0718ccd41
+  pullPolicy: IfNotPresent
+
+webhookConfig:
+  tls:
+      crt: |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+      key: |
+        -----BEGIN RSA PRIVATE KEY-----
+        ...
+        -----END RSA PRIVATE KEY-----
+  caBundle: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+
+
+# Kubeconfig to the target cluster. In-cluster configuration will be used if not specified.
+kubeconfig: 
+
+authKubeconfig: 
+
+resources:
+  requests:
+   cpu: 100m
+   memory: 64Mi
+  limits:
+   cpu: 200m
+   memory: 256Mi
