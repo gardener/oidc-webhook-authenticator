@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret-oidc-webhook-authenticator-tls: {{ include (print $.Template.BasePath "/secret-tls.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ include "oidc-webhook-authenticator.name" . }}
+      containers:
+      - name: {{ include "oidc-webhook-authenticator.name" . }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --tls-cert-file=/var/run/oidc-webhook-authenticator/tls/tls.crt
+        - --tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/tls.key
+        {{- if .Values.kubeconfig }}
+        - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
+        {{- end }}
+        - --v=2
+        {{- if .Values.authKubeconfig }}
+        - --authentication-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
+        - --authorization-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
+        {{- else }}
+        - --authorization-always-allow-paths=/validate-token
+        - --authentication-skip-lookup=true
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: tls
+          mountPath: /var/run/oidc-webhook-authenticator/tls
+          readOnly: true
+        {{- if .Values.kubeconfig }}
+        - name: kubeconfig
+          mountPath: /var/run/oidc-webhook-authenticator/kubeconfig
+          readOnly: true
+        {{- end }}
+        {{- if .Values.authKubeconfig }}
+        - name: auth-kubeconfig
+          mountPath: /var/run/oidc-webhook-authenticator/auth-kubeconfig
+          readOnly: true
+        {{- end }}
+      volumes:
+      - name: tls
+        secret:
+          secretName: oidc-webhook-authenticator-tls
+          defaultMode: 420
+      {{- if .Values.kubeconfig }}
+      - name: kubeconfig
+        secret:
+          secretName: oidc-webhook-authenticator-kubeconfig
+          defaultMode: 420
+      {{- end }}
+      {{- if .Values.authKubeconfig }}
+      - name: auth-kubeconfig
+        secret:
+          secretName: oidc-webhook-authenticator-auth-kubeconfig
+          defaultMode: 420
+      {{- end }}
