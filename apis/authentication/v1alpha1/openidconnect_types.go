@@ -117,7 +117,7 @@ type OIDCAuthenticationSpec struct {
 
 	// +optional
 
-	// `caBundle` is a PEM encoded CA bundle which will be used to validate the webhook's server certificate.
+	// CABundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate.
 	// If unspecified, system trust roots on the apiserver are used.
 	CABundle []byte `json:"caBundle,omitempty"`
 

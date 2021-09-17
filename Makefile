@@ -41,10 +41,12 @@ help: ## Display this help.
 
 manifests: tools-image ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
-	cp -u config/crd/bases/* helm/oidc-webhook-authenticator/crds/.
+	cp -f config/crd/bases/* helm/oidc-webhook-authenticator/crds/.
+	cat hack/license_boilerplate.yaml.txt > charts/oidc-webhook-authenticator/charts/application/templates/authentication.gardener.cloud_openidconnects.yaml
+	cat config/crd/bases/authentication.gardener.cloud_openidconnects.yaml >> charts/oidc-webhook-authenticator/charts/application/templates/authentication.gardener.cloud_openidconnects.yaml
 
 generate: tools-image ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen object:headerFile="hack/license_boilerplate.go.txt" paths="./..."
 
 fmt: ## Run go fmt against code.
 	go fmt ./...
