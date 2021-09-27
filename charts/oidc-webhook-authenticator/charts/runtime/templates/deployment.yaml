@@ -51,6 +51,14 @@ spec:
         - --authorization-always-allow-paths=/validate-token
         - --authentication-skip-lookup=true
         {{- end }}
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 10443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 20
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:
