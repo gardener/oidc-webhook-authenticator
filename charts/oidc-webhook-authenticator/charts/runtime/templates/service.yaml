@@ -17,6 +17,7 @@ spec:
   selector:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
   ports:
-  - port: 443
+  - name: https
+    port: 443
     protocol: TCP
     targetPort: 10443
