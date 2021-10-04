@@ -2,11 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-replicaCount: 2
+virtualGarden:
+  enabled: false
+
+replicaCount: 1
 
 image:
   repository: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
-  tag: v0.1.0-dev-62b406c497468341cc0e5b81801444d0718ccd41
+  tag: v0.1.0
   pullPolicy: IfNotPresent
 
 webhookConfig:
