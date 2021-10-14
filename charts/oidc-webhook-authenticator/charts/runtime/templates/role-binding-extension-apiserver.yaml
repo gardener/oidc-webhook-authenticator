@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.authKubeconfig }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}-extension-apiserver-binding
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: {{ include "oidc-webhook-authenticator.name" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
