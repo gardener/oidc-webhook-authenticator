@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -24,7 +25,6 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/cli/globalflag"
 	"k8s.io/component-base/configz"
-	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/version/verflag"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -153,7 +153,7 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook) http.Handl
 
 	healthz.InstallHandler(pathRecorder)
 	configz.InstallHandler(pathRecorder)
-	pathRecorder.Handle("/metrics", legacyregistry.HandlerWithReset())
+	pathRecorder.Handle("/metrics", promhttp.Handler())
 
 	pathRecorder.Handle("/validate-token", authWH.Build())
 

@@ -8,12 +8,12 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
 	"github.com/go-logr/logr"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
-
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
@@ -27,22 +27,27 @@ type handler struct {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	timer := metrics.NewTimerForTokenValidationRequest()
+	defer timer.ObserveDuration()
+
 	tr := &authenticationv1.TokenReview{}
 
 	err := json.NewDecoder(r.Body).Decode(tr)
 	if err != nil {
 		h.log.Error(err, "failed to read conversion request")
 		h.failHandler.ServeHTTP(w, r)
-
+		metrics.IncTotalRequestValidationErrors()
 		return
 	}
 
 	authResp, ok, err := h.AuthenticateToken(r.Context(), tr.Spec.Token)
+	authenticated := false
 	if err != nil || !ok {
 		tr.Status = authenticationv1.TokenReviewStatus{
 			Authenticated: false,
 		}
 	} else {
+		authenticated = true
 		tr.Status = authenticationv1.TokenReviewStatus{
 			Authenticated: true,
 			User: authenticationv1.UserInfo{
@@ -80,8 +85,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(tr)
 	if err != nil {
 		h.log.Error(err, "failed to write response")
+		metrics.IncTotalRequestValidationErrors()
 		return
 	}
+	metrics.IncTotalRequestValidations(authenticated)
 }
 
 // Webhook represents each individual webhook.
