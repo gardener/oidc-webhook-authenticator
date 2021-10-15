@@ -24,6 +24,7 @@ webhookConfig:
         -----END RSA PRIVATE KEY-----
 
 # Kubeconfig to the target cluster. In-cluster configuration will be used if not specified.
+# If serviceAccountTokenVolumeProjection.enabled is set to `true` then this value is required.
 kubeconfig: 
 
 authKubeconfig: 
@@ -35,3 +36,8 @@ resources:
   limits:
    cpu: 200m
    memory: 256Mi
+
+serviceAccountTokenVolumeProjection:
+  enabled: false
+  expirationSeconds: 1800
+  audience: ""

@@ -33,6 +33,9 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ include "oidc-webhook-authenticator.name" . }}
+      {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
+      automountServiceAccountToken: false
+      {{- end }}
       containers:
       - name: {{ include "oidc-webhook-authenticator.name" . }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -40,7 +43,7 @@ spec:
         args:
         - --tls-cert-file=/var/run/oidc-webhook-authenticator/tls/tls.crt
         - --tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/tls.key
-        {{- if .Values.kubeconfig }}
+        {{- if or .Values.serviceAccountTokenVolumeProjection.enabled .Values.kubeconfig }}
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
@@ -75,6 +78,11 @@ spec:
           mountPath: /var/run/oidc-webhook-authenticator/auth-kubeconfig
           readOnly: true
         {{- end }}
+        {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
+        - name: service-account-token
+          mountPath: /var/run/oidc-webhook-authenticator/serviceaccount
+          readOnly: true
+        {{- end }}
       volumes:
       - name: tls
         secret:
@@ -91,4 +99,19 @@ spec:
         secret:
           secretName: oidc-webhook-authenticator-auth-kubeconfig
           defaultMode: 420
+      {{- end }}
+      {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
+      - name: service-account-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              {{- if .Values.serviceAccountTokenVolumeProjection.expirationSeconds }}
+              expirationSeconds: {{ .Values.serviceAccountTokenVolumeProjection.expirationSeconds }}
+              {{- else }}
+              expirationSeconds: 1800
+              {{- end }}
+              {{- if .Values.serviceAccountTokenVolumeProjection.audience }}
+              audience: {{ .Values.serviceAccountTokenVolumeProjection.audience }}
+              {{- end }}
       {{- end }}
