@@ -54,6 +54,9 @@ spec:
         - --authorization-always-allow-paths=/validate-token
         - --authentication-skip-lookup=true
         {{- end }}
+        {{- if .Values.apiAudiences }}
+        - --api-audiences={{ .Values.apiAudiences | join "," }}
+        {{- end }}
         livenessProbe:
           failureThreshold: 3
           httpGet:
