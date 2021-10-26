@@ -22,6 +22,10 @@ webhookConfig:
         -----BEGIN RSA PRIVATE KEY-----
         ...
         -----END RSA PRIVATE KEY-----
+  caBundle: |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
 
 # Kubeconfig to the target cluster. In-cluster configuration will be used if not specified.
 # If automountServiceAccountToken is set to `true` then this value is required because in-cluster configuration will not work.
@@ -37,6 +41,7 @@ auth:
   # A list of HTTP paths to skip during authorization.
   authorizationAlwaysAllowPaths:
   - /healthz
+  - /webhooks/validating
 
 resources:
   requests:

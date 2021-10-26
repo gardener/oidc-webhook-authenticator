@@ -1,0 +1,33 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}
+webhooks:
+- name: validation.oidc.webhook.authenticator
+  rules:
+  - apiGroups:
+    - "authentication.gardener.cloud"
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - openidconnects
+  failurePolicy: Fail
+  objectSelector: {}
+  namespaceSelector: {}
+  sideEffects: None
+  admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    {{- if .Values.virtualGarden.enabled }}
+    url: {{ printf "https://%s.%s/webhooks/validating" (include "oidc-webhook-authenticator.name" .) (.Release.Namespace) }}
+    {{- else }}
+    service:
+      namespace: {{ .Release.Namespace }}
+      name: {{ include "oidc-webhook-authenticator.name" . }}
+      path: /webhooks/validating
+    {{- end }}
+    caBundle: {{ required ".Values.webhookConfig.caBundle is required" (b64enc .Values.webhookConfig.caBundle) }}
