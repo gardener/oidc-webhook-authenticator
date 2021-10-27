@@ -24,7 +24,6 @@ import (
 	"k8s.io/apiserver/pkg/server/mux"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/cli/globalflag"
-	"k8s.io/component-base/configz"
 	"k8s.io/component-base/version/verflag"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -152,7 +151,6 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook) http.Handl
 	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
 
 	healthz.InstallHandler(pathRecorder)
-	configz.InstallHandler(pathRecorder)
 	pathRecorder.Handle("/metrics", promhttp.Handler())
 
 	pathRecorder.Handle("/validate-token", authWH.Build())
