@@ -33,8 +33,8 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ include "oidc-webhook-authenticator.name" . }}
-      {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
-      automountServiceAccountToken: false
+      {{- if .Values.automountServiceAccountToken }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       {{- end }}
       containers:
       - name: {{ include "oidc-webhook-authenticator.name" . }}
@@ -43,20 +43,18 @@ spec:
         args:
         - --tls-cert-file=/var/run/oidc-webhook-authenticator/tls/tls.crt
         - --tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/tls.key
-        {{- if or .Values.serviceAccountTokenVolumeProjection.enabled .Values.kubeconfig }}
+        {{- if .Values.kubeconfig }}
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
-        {{- if .Values.authKubeconfig }}
+        {{- if .Values.auth.kubeconfig }}
         - --authentication-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
         - --authorization-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
-        {{- else }}
-        - --authorization-always-allow-paths=/validate-token
-        - --authentication-skip-lookup=true
         {{- end }}
         {{- if .Values.apiAudiences }}
         - --api-audiences={{ .Values.apiAudiences | join "," }}
         {{- end }}
+        - --authorization-always-allow-paths={{ .Values.auth.authorizationAlwaysAllowPaths | join "," }}
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -76,7 +74,7 @@ spec:
           mountPath: /var/run/oidc-webhook-authenticator/kubeconfig
           readOnly: true
         {{- end }}
-        {{- if .Values.authKubeconfig }}
+        {{- if .Values.auth.kubeconfig }}
         - name: auth-kubeconfig
           mountPath: /var/run/oidc-webhook-authenticator/auth-kubeconfig
           readOnly: true
@@ -97,7 +95,7 @@ spec:
           secretName: oidc-webhook-authenticator-kubeconfig
           defaultMode: 420
       {{- end }}
-      {{- if .Values.authKubeconfig }}
+      {{- if .Values.auth.kubeconfig }}
       - name: auth-kubeconfig
         secret:
           secretName: oidc-webhook-authenticator-auth-kubeconfig
