@@ -75,12 +75,12 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 
 	fs := cmd.Flags()
 	verflag.AddFlags(fs)
+	fs.StringSliceVar((*[]string)(&conf.Authentication.APIAudiences), "api-audiences", []string{}, "Identifiers of the API. Tokens used against the API should be bound to at least one of these audiences.")
+
 	opt.AddFlags(fs)
 	globalflag.AddGlobalFlags(fs, "global")
 
-	opts := zap.Options{
-		Development: true,
-	}
+	opts := zap.Options{}
 	opts.BindFlags(goflag.CommandLine)
 	fs.AddGoFlagSet(goflag.CommandLine)
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
