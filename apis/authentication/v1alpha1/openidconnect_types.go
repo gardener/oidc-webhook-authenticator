@@ -164,9 +164,14 @@ const (
 	PS512 SigningAlgorithm = "PS512"
 )
 
-// ClaimPrefixingDisabled indicates that username or groups claim should not be
-// prefixed automatically.
-const ClaimPrefixingDisabled = "-"
+const (
+	// ClaimPrefixingDisabled indicates that username or groups claim should not be
+	// prefixed automatically.
+	ClaimPrefixingDisabled = "-"
+
+	// SystemPrefix is a forbidden prefix. Usernames and groups starting with this value will be ignored.
+	SystemPrefix = "system:"
+)
 
 type OIDCAuthenticationStatus struct{}
 
