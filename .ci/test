@@ -17,8 +17,6 @@ fi
 
 cd "${SOURCE_PATH}"
 
-apt-get update
-
 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 make test
