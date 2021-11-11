@@ -6,7 +6,9 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
+	"strings"
 
 	"gopkg.in/square/go-jose.v2"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -113,9 +115,21 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("clientID"), r.Spec.ClientID, "must not be empty"))
 	}
 
+	if isPrefixingMalicious(r.Spec.UsernamePrefix) {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("usernamePrefix"), r.Spec.UsernamePrefix, fmt.Sprintf("must not start with %s", SystemPrefix)))
+	}
+
+	if isPrefixingMalicious(r.Spec.GroupsPrefix) {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("groupsPrefix"), r.Spec.GroupsPrefix, fmt.Sprintf("must not start with %s", SystemPrefix)))
+	}
+
 	return allErrs
 }
 
 func validateJWKS(jwks []byte) error {
 	return json.Unmarshal(jwks, &jose.JSONWebKeySet{})
+}
+
+func isPrefixingMalicious(s *string) bool {
+	return s != nil && len(*s) > 0 && *s != ClaimPrefixingDisabled && strings.HasPrefix(*s, SystemPrefix)
 }

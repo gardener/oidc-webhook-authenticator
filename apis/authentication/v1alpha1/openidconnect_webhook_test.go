@@ -5,7 +5,10 @@
 package v1alpha1_test
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/pointer"
 
@@ -14,7 +17,8 @@ import (
 
 var _ = Describe("OpenidconnectWebhook", func() {
 	var (
-		oidc OpenIDConnect
+		oidc         OpenIDConnect
+		systemPrefix = SystemPrefix
 	)
 
 	BeforeEach(func() {
@@ -102,6 +106,60 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("clientID: Invalid value: \"\": must not be empty"))
 		})
+
+		DescribeTable("should not allow username prefix to start with 'system:'",
+			func(maliciousPrefix string) {
+				errMessageTemplate := "usernamePrefix: Invalid value: \"%s\": must not start with system:"
+				oidc.Spec.UsernamePrefix = &maliciousPrefix
+				err := oidc.ValidateCreate()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+			},
+
+			Entry("exact match", systemPrefix),
+			Entry("match with suffix", systemPrefix+"some-more-text"),
+		)
+
+		DescribeTable("should allow username prefix if it does not start with 'system:'",
+			func(validPrefix string) {
+				oidc.Spec.UsernamePrefix = &validPrefix
+				err := oidc.ValidateCreate()
+				Expect(err).NotTo(HaveOccurred())
+			},
+
+			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
+			Entry("valid prefix containing system:", "pref-"+systemPrefix+"-suff"),
+			Entry("valid prefix not containing system:", "pref-"),
+			Entry("disabled prefixing", "-"),
+			Entry("empty prefix", ""),
+		)
+
+		DescribeTable("should not allow groups prefix to start with 'system:'",
+			func(maliciousPrefix string) {
+				errMessageTemplate := "groupsPrefix: Invalid value: \"%s\": must not start with system:"
+				oidc.Spec.GroupsPrefix = &maliciousPrefix
+				err := oidc.ValidateCreate()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+			},
+
+			Entry("exact match", systemPrefix),
+			Entry("match with suffix", systemPrefix+"some-more-text"),
+		)
+
+		DescribeTable("should allow groups prefix if it does not start with 'system:'",
+			func(validPrefix string) {
+				oidc.Spec.GroupsPrefix = &validPrefix
+				err := oidc.ValidateCreate()
+				Expect(err).NotTo(HaveOccurred())
+			},
+
+			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
+			Entry("valid prefix containing system:", "pref-"+systemPrefix+"-suff"),
+			Entry("valid prefix not containing system:", "pref-"),
+			Entry("disabled prefixing", "-"),
+			Entry("empty prefix", ""),
+		)
 	})
 
 	Context("update validation", func() {
@@ -132,5 +190,83 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("issuerURL: Invalid value: \"http://notsecure.com\": must start with https"))
 		})
+
+		DescribeTable("should not allow username prefix to start with 'system:'",
+			func(maliciousPrefix string) {
+				errMessageTemplate := "usernamePrefix: Invalid value: \"%s\": must not start with system:"
+				newObj := OpenIDConnect{
+					Spec: OIDCAuthenticationSpec{
+						IssuerURL:      "https://secure2.com",
+						ClientID:       "some-id",
+						UsernamePrefix: &maliciousPrefix,
+					},
+				}
+				err := newObj.ValidateUpdate(&oidc)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+			},
+
+			Entry("exact match", systemPrefix),
+			Entry("match with suffix", systemPrefix+"some-more-text"),
+		)
+
+		DescribeTable("should allow username prefix if it does not start with 'system:'",
+			func(validPrefix string) {
+				newObj := OpenIDConnect{
+					Spec: OIDCAuthenticationSpec{
+						IssuerURL:      "https://secure2.com",
+						ClientID:       "some-id",
+						UsernamePrefix: &validPrefix,
+					},
+				}
+				err := newObj.ValidateUpdate(&oidc)
+				Expect(err).NotTo(HaveOccurred())
+			},
+
+			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
+			Entry("valid prefix containing system:", "pref-"+systemPrefix+"-suff"),
+			Entry("valid prefix not containing system:", "pref-"),
+			Entry("disabled prefixing", "-"),
+			Entry("empty prefix", ""),
+		)
+
+		DescribeTable("should not allow groups prefix to start with 'system:'",
+			func(maliciousPrefix string) {
+				errMessageTemplate := "groupsPrefix: Invalid value: \"%s\": must not start with system:"
+				newObj := OpenIDConnect{
+					Spec: OIDCAuthenticationSpec{
+						IssuerURL:    "https://secure2.com",
+						ClientID:     "some-id",
+						GroupsPrefix: &maliciousPrefix,
+					},
+				}
+				err := newObj.ValidateUpdate(&oidc)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+			},
+
+			Entry("exact match", systemPrefix),
+			Entry("match with suffix", systemPrefix+"some-more-text"),
+		)
+
+		DescribeTable("should allow groups prefix if it does not start with 'system:'",
+			func(validPrefix string) {
+				newObj := OpenIDConnect{
+					Spec: OIDCAuthenticationSpec{
+						IssuerURL:    "https://secure2.com",
+						ClientID:     "some-id",
+						GroupsPrefix: &validPrefix,
+					},
+				}
+				err := newObj.ValidateUpdate(&oidc)
+				Expect(err).NotTo(HaveOccurred())
+			},
+
+			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
+			Entry("valid prefix containing system:", "pref-"+systemPrefix+"-suff"),
+			Entry("valid prefix not containing system:", "pref-"),
+			Entry("disabled prefixing", "-"),
+			Entry("empty prefix", ""),
+		)
 	})
 })

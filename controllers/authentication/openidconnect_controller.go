@@ -249,7 +249,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 		if done {
 			userName := resp.User.GetName()
 			// Mark token as invalid when userName has "system:" prefix.
-			if strings.HasPrefix(userName, "system:") {
+			if strings.HasPrefix(userName, authenticationv1alpha1.SystemPrefix) {
 				// TODO add logging
 
 				return false
@@ -258,7 +258,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 			filteredGroups := []string{}
 			for _, group := range resp.User.GetGroups() {
 				// ignore groups with "system:" prefix
-				if !strings.HasPrefix(group, "system:") {
+				if !strings.HasPrefix(group, authenticationv1alpha1.SystemPrefix) {
 					filteredGroups = append(filteredGroups, group)
 				}
 			}
