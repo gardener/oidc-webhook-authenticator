@@ -2,23 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "oidc-webhook-authenticator.name" . }}-resource-reader
-  labels:
-    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
-rules:
-- apiGroups:
-  - authentication.gardener.cloud
-  resources:
-  - openidconnects
-  verbs:
-  - get
-  - list
-  - watch
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

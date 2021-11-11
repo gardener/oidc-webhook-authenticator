@@ -1,1 +1,60 @@
-../../values.yaml
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+replicaCount: 1
+
+image:
+  repository: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+autoscaling:
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    cpuTargetAverageUtilization: 80
+
+webhookConfig:
+  # If global.certManager.enabled is set to `true` then configurations in the `tls` section will be ignored.
+  tls:
+    crt: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+
+# Kubeconfig to the target cluster. In-cluster configuration will be used if not specified.
+# If automountServiceAccountToken is set to `true` then this value is required because in-cluster configuration will not work.
+kubeconfig:
+
+auth:
+  # Kubeconfig to the target authentication and authorization cluster. In-cluster configuration will be used if not specified.
+  # If automountServiceAccountToken is set to `true` then this value is required because in-cluster configuration will not work.
+  kubeconfig:
+  # A list of HTTP paths to skip during authorization.
+  authorizationAlwaysAllowPaths:
+  - /healthz
+  - /webhooks/validating
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+automountServiceAccountToken: true
+
+serviceAccountTokenVolumeProjection:
+  enabled: false
+  expirationSeconds: 1800
+  audience: ""
+
+# List with identifiers of the API. Tokens used against the API should be bound to at least one of these audiences.
+apiAudiences: []

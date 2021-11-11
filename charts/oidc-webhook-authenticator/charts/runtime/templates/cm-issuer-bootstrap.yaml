@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-apiVersion: v1
-kind: ServiceAccount
+{{- if .Values.global.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
 metadata:
-  name: {{ include "oidc-webhook-authenticator.name" . }}
+  name: {{ include "oidc-webhook-authenticator.name" . }}-bootstrap-issuer
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  selfSigned: {}
+{{- end }}

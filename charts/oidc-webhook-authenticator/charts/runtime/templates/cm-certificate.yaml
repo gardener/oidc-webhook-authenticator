@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.global.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+spec:
+  dnsNames:
+  - {{ include "oidc-webhook-authenticator.name" . }}
+  - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}
+  - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}.svc
+  - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}.svc.cluster
+  - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: {{ include "oidc-webhook-authenticator.name" . }}-issuer
+  secretName: {{ include "oidc-webhook-authenticator.name" . }}-tls
+{{- end }}
