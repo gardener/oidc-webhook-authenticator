@@ -640,6 +640,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
 			Expect(review.Status.User.Groups).To(ConsistOf(fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "employee")))
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate token with custom prefixes for group and user", func() {
@@ -672,6 +677,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate token but not return any groups for user", func() {
@@ -706,6 +716,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate token and return correct user and groups", func() {
@@ -751,6 +766,11 @@ var _ = Describe("Integration", func() {
 				prefixedGroups = append(prefixedGroups, groupsPrefix+v)
 			}
 			Expect(review.Status.User.Groups).To(ConsistOf(prefixedGroups))
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate users prefixed with `system:`", func() {
@@ -782,6 +802,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate users prefixed with `system:` when user prefixing is disabled", func() {
@@ -813,6 +838,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not return groups prefixed with `system:`", func() {
@@ -849,6 +879,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not return groups prefixed with `system:` when group prefixing is disabled", func() {
@@ -885,6 +920,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{"admin"}))
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user if username claim is missing", func() {
@@ -921,6 +961,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user if audience claim is wrong", func() {
@@ -958,6 +1003,11 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate user against the target audience", func() {
@@ -1024,6 +1074,12 @@ var _ = Describe("Integration", func() {
 			Expect(review2.Status.Authenticated).To(BeTrue())
 			Expect(review2.Status.User.Username).To(Equal(userPrefix2 + user))
 			Expect(review2.Status.User.Groups).To(ConsistOf(groupsPrefix2 + "admin"))
+
+			err = idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider2)
 		})
 	})
 })
