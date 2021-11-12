@@ -115,9 +115,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &emailUserNameClaim
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
@@ -151,9 +149,8 @@ var _ = Describe("Integration", func() {
 			keys, err := idp.PublicKeySetAsBytes()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
 			provider.Name = "static"
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			provider.Spec.JWKS.Keys = keys
 
 			// stop the idp server so that we ensure that the keys will not be fetched over the network
@@ -184,9 +181,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
@@ -220,16 +215,12 @@ var _ = Describe("Integration", func() {
 			err = idp1.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &emailUserNameClaim
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			provider1 := defaultOIDCProvider()
-			provider1.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp1.ServerSecurePort)
-			provider1.Spec.CABundle = idp1.CA()
+			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp1.ServerSecurePort), idp1.CA())
 			provider1.Spec.UsernameClaim = &emailUserNameClaim
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
@@ -265,9 +256,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.RequiredClaims = map[string]string{
 				"admin": "true",
 			}
@@ -296,9 +285,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.RequiredClaims = map[string]string{
 				"admin": "true",
 			}
@@ -328,9 +315,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
@@ -356,9 +341,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
@@ -385,9 +368,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
@@ -415,9 +396,7 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			prefix := "customprefix:"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernamePrefix = &prefix
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
@@ -450,9 +429,7 @@ var _ = Describe("Integration", func() {
 
 			usernamePrefix := "customprefix:"
 			groupNamePrefix := "grprefix:"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernamePrefix = &usernamePrefix
 			provider.Spec.GroupsPrefix = &groupNamePrefix
 
@@ -492,9 +469,7 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			prefix := "customprefix:"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernamePrefix = &prefix
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
@@ -523,16 +498,12 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			prefix := "customprefix:"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernamePrefix = &prefix
 			provider.Spec.ClientID = "123"
 
 			prefix1 := "customprefix1:"
-			provider1 := defaultOIDCProvider()
-			provider1.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider1.Spec.CABundle = idp.CA()
+			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider1.Spec.UsernamePrefix = &prefix1
 			provider1.Spec.ClientID = "456"
 
@@ -620,9 +591,7 @@ var _ = Describe("Integration", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
@@ -655,9 +624,7 @@ var _ = Describe("Integration", func() {
 
 			userPrefix := "usr:"
 			groupsPrefix := "gr:"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernamePrefix = &userPrefix
 			provider.Spec.GroupsPrefix = &groupsPrefix
 
@@ -693,9 +660,7 @@ var _ = Describe("Integration", func() {
 			userPrefix := "usr:"
 			groupsPrefix := "gr:"
 			groupsClaim := "custom-groups"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.GroupsClaim = &groupsClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 			provider.Spec.GroupsPrefix = &groupsPrefix
@@ -733,9 +698,7 @@ var _ = Describe("Integration", func() {
 			userClaim := "custom-sub"
 			groupsPrefix := "gr:"
 			groupsClaim := "custom-groups"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.GroupsClaim = &groupsClaim
 			provider.Spec.UsernamePrefix = &userPrefix
@@ -781,9 +744,7 @@ var _ = Describe("Integration", func() {
 
 			userPrefix := "system:"
 			userClaim := "custom-sub"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 
@@ -817,9 +778,7 @@ var _ = Describe("Integration", func() {
 
 			userPrefix := "-"
 			userClaim := "custom-sub"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 
@@ -855,9 +814,7 @@ var _ = Describe("Integration", func() {
 			userClaim := "custom-sub"
 			groupsPrefix := "system:"
 			groupsClaim := "custom-groups"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 			provider.Spec.GroupsClaim = &groupsClaim
@@ -896,9 +853,7 @@ var _ = Describe("Integration", func() {
 			userClaim := "custom-sub"
 			groupsPrefix := "-"
 			groupsClaim := "custom-groups"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 			provider.Spec.GroupsClaim = &groupsClaim
@@ -937,9 +892,7 @@ var _ = Describe("Integration", func() {
 			userClaim := "custom-sub"
 			groupsPrefix := "grouppref:"
 			groupsClaim := "custom-groups"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 			provider.Spec.GroupsClaim = &groupsClaim
@@ -978,9 +931,7 @@ var _ = Describe("Integration", func() {
 			userClaim := "custom-sub"
 			groupsPrefix := "grouppref:"
 			groupsClaim := "custom-groups"
-			provider := defaultOIDCProvider()
-			provider.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider.Spec.CABundle = idp.CA()
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &userClaim
 			provider.Spec.UsernamePrefix = &userPrefix
 			provider.Spec.GroupsClaim = &groupsClaim
@@ -1022,9 +973,7 @@ var _ = Describe("Integration", func() {
 			groupsPrefix1 := "grouppref1:"
 			groupsPrefix2 := "grouppref2:"
 			groupsClaim := "custom-groups"
-			provider1 := defaultOIDCProvider()
-			provider1.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider1.Spec.CABundle = idp.CA()
+			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider1.Spec.UsernameClaim = &userClaim
 			provider1.Spec.UsernamePrefix = &userPrefix1
 			provider1.Spec.GroupsClaim = &groupsClaim
@@ -1033,9 +982,7 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
 
-			provider2 := defaultOIDCProvider()
-			provider2.Spec.IssuerURL = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			provider2.Spec.CABundle = idp.CA()
+			provider2 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider2.Spec.UsernameClaim = &userClaim
 			provider2.Spec.UsernamePrefix = &userPrefix2
 			provider2.Spec.GroupsClaim = &groupsClaim
@@ -1109,7 +1056,7 @@ func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client
 	}, timeout, interval).Should(BeTrue())
 }
 
-func defaultOIDCProvider() *authenticationv1alpha1.OpenIDConnect {
+func defaultOIDCProvider(issuerUrl string, caBundle []byte) *authenticationv1alpha1.OpenIDConnect {
 	name := rand.String(5)
 	return &authenticationv1alpha1.OpenIDConnect{
 		TypeMeta: metav1.TypeMeta{
@@ -1120,8 +1067,10 @@ func defaultOIDCProvider() *authenticationv1alpha1.OpenIDConnect {
 			Name: name,
 		},
 		Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
-			ClientID: "my-idp-provider",
-			JWKS:     authenticationv1alpha1.JWKSSpec{},
+			ClientID:  "my-idp-provider",
+			JWKS:      authenticationv1alpha1.JWKSSpec{},
+			CABundle:  caBundle,
+			IssuerURL: issuerUrl,
 		},
 	}
 }
