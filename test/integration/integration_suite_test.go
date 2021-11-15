@@ -9,7 +9,8 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"io/fs"
+	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -23,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -43,6 +43,7 @@ var (
 	oidcOut, oidcErr, apiserverOut, apiserverErr bytes.Buffer
 	k8sClient                                    client.Client
 	clientset                                    *kubernetes.Clientset
+	ctx                                          = context.Background()
 )
 
 const (
@@ -76,35 +77,21 @@ var _ = BeforeSuite(func() {
 	}
 
 	cfg, err := testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
+	Expect(err).NotTo(HaveOccurred())
+	Expect(cfg).NotTo(BeNil())
 
 	apiServerSecurePort, err = strconv.Atoi(testEnv.Environment.ControlPlane.GetAPIServer().SecureServing.Port)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 	err = authenticationv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             scheme.Scheme,
-		MetricsBindAddress: "0",
-		Port:               0,
-		LeaderElection:     false,
-		CertDir:            "",
-	})
-	Expect(err).ToNot(HaveOccurred())
-
-	go func() {
-		err = mgr.Start(ctrl.SetupSignalHandler())
-		Expect(err).ToNot(HaveOccurred())
-	}()
-
-	k8sClient = mgr.GetClient()
+	k8sClient, err = client.New(cfg, client.Options{})
+	Expect(err).NotTo(HaveOccurred())
 
 	clientset, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
 	// create pod-reader role so we can use it in some test scenarios
-	ctx := context.Background()
 	_, err = clientset.RbacV1().Roles("default").Create(ctx, &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-reader",
@@ -132,12 +119,21 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	if dumpLogs {
-		fmt.Println("apiserver out: " + apiserverOut.String())
-		fmt.Println("apiserver err: " + apiserverErr.String())
-		fmt.Println("oidc out: " + oidcOut.String())
-		fmt.Println("oidc err: " + oidcErr.String())
+		fileMode := fs.FileMode(0644)
+
+		dumpFn := func(filename string, bytes []byte, perm fs.FileMode) {
+			if len(bytes) > 0 {
+				ioutil.WriteFile(filename, bytes, perm)
+			}
+		}
+
+		dumpFn("apiserver.out", apiserverOut.Bytes(), fileMode)
+		dumpFn("apiserver-err.out", apiserverErr.Bytes(), fileMode)
+		dumpFn("oidc.out", oidcOut.Bytes(), fileMode)
+		dumpFn("oidc-err.out", oidcErr.Bytes(), fileMode)
 	}
+
 	By("tearing down the test environment")
 	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 })

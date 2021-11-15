@@ -18,6 +18,7 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -39,7 +40,18 @@ var _ = Describe("Integration", func() {
 
 	var (
 		emailUserNameClaim = "email"
-		ctx                = context.Background()
+		stopIDP            = func(ctx context.Context, idp *mockidp.OIDCIdentityServer) {
+			err := idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		createAndStartIDPServer = func(numberOfSigningKeys int) *mockidp.OIDCIdentityServer {
+			idp, err := mockidp.NewIdentityServer(rand.String(10), numberOfSigningKeys)
+			Expect(err).NotTo(HaveOccurred())
+			err = idp.Start()
+			Expect(err).NotTo(HaveOccurred())
+			return idp
+		}
 	)
 
 	Context("Authenticating user to the kube api-server via token from a trusted identity provider", func() {
@@ -87,9 +99,11 @@ var _ = Describe("Integration", func() {
 			return roleBinding
 		}
 
-		deleteRoleBinding := func(ctx context.Context, roleBinding *rbacv1.RoleBinding) {
+		ensureRoleBindingIsDeleted := func(ctx context.Context, roleBinding *rbacv1.RoleBinding) {
 			err := clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(ctx, roleBinding.Name, metav1.DeleteOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}
 		}
 
 		makeAPIServerRequestAndExpectCode := func(userToken string, expectedStatusCode int) {
@@ -110,10 +124,8 @@ var _ = Describe("Integration", func() {
 		}
 
 		It("Should authenticate but not authorize user with a single registered identity provider", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 2)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(2)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &emailUserNameClaim
@@ -135,17 +147,11 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(signedTokenWithSecondKey, http.StatusForbidden)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate but not authorize user with a single registered identity provider and static jwks", func() {
-			idp, err := mockidp.NewIdentityServer("offline", 2)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(2)
 			keys, err := idp.PublicKeySetAsBytes()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -154,8 +160,7 @@ var _ = Describe("Integration", func() {
 			provider.Spec.JWKS.Keys = keys
 
 			// stop the idp server so that we ensure that the keys will not be fetched over the network
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			stopIDP(ctx, idp)
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 			claims := defaultClaims()
@@ -176,10 +181,8 @@ var _ = Describe("Integration", func() {
 		})
 
 		It("Should authenticate and authorize user with a single registered identity provider and defaulted claim to `sub`", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 2)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(2)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
@@ -194,26 +197,19 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, fmt.Sprintf("%s/%s", provider.Name, user))
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
 			makeAPIServerRequestAndExpectCode(signedTokenWithFirstKey, http.StatusOK)
-
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			deleteRoleBinding(ctx, roleBinding)
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate and authorize user with two registered identity providers", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			idp1, err := mockidp.NewIdentityServer("mytestserver1", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
-			err = idp1.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			idp1 := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp1)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernameClaim = &emailUserNameClaim
@@ -236,25 +232,17 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, fmt.Sprintf("%s/%s", provider1.Name, email))
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
 			makeAPIServerRequestAndExpectCode(signedTokenFromSecondIDP, http.StatusOK)
-
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp1.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			deleteRoleBinding(ctx, roleBinding)
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
 		})
 
 		It("Should not authenticate user because of missing required claim", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.RequiredClaims = map[string]string{
@@ -273,17 +261,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate user with required claim", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.RequiredClaims = map[string]string{
@@ -303,17 +286,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusForbidden)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user because of wrong issuer", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
@@ -329,17 +307,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user because of wrong audience", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
@@ -356,17 +329,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user because of expired token", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
@@ -383,17 +351,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate and authorize user with custom prefix", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			prefix := "customprefix:"
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
@@ -410,63 +373,50 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix+user)
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
-
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			deleteRoleBinding(ctx, roleBinding)
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
-		It("Should authenticate and authorize user with custom prefix for group", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+		DescribeTable("Should authenticate and authorize user with custom prefix for group",
+			func(groups []string, allowedGroup string) {
+				idp := createAndStartIDPServer(1)
+				defer stopIDP(ctx, idp)
 
-			usernamePrefix := "customprefix:"
-			groupNamePrefix := "grprefix:"
-			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
-			provider.Spec.UsernamePrefix = &usernamePrefix
-			provider.Spec.GroupsPrefix = &groupNamePrefix
+				usernamePrefix := "customprefix:"
+				groupNamePrefix := "grprefix:"
+				provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+				provider.Spec.UsernamePrefix = &usernamePrefix
+				provider.Spec.GroupsPrefix = &groupNamePrefix
 
-			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+				waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
-			claims := defaultClaims()
-			claims["sub"] = user
-			claims["groups"] = []string{"podreader1", "podreader2"}
-			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+				user := "this-is-my-identity"
+				claims := defaultClaims()
+				claims["sub"] = user
+				claims["groups"] = groups
+				claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
-			token, err := idp.Sign(0, claims)
-			Expect(err).NotTo(HaveOccurred())
+				token, err := idp.Sign(0, claims)
+				Expect(err).NotTo(HaveOccurred())
 
-			roleBinding1 := createRoleBindingForGroup(ctx, defaultNamespaceName, podReaderRoleName, groupNamePrefix+"podreader1")
+				roleBinding := createRoleBindingForGroup(ctx, defaultNamespaceName, podReaderRoleName, groupNamePrefix+allowedGroup)
+				defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
-			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+				makeAPIServerRequestAndExpectCode(token, http.StatusOK)
 
-			deleteRoleBinding(ctx, roleBinding1)
+				waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+			},
 
-			roleBinding2 := createRoleBindingForGroup(ctx, defaultNamespaceName, podReaderRoleName, groupNamePrefix+"podreader2")
-
-			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
-
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			deleteRoleBinding(ctx, roleBinding2)
-
-			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
-		})
+			Entry("Authorize the first group", []string{"podreader1", "podreader2"}, "podreader1"),
+			Entry("Authorize the second group", []string{"podreader1", "podreader2"}, "podreader2"),
+		)
 
 		It("Should not authenticate user with wrong audience", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			prefix := "customprefix:"
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
@@ -485,17 +435,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should correctly authenticate and authorize user with valid token from idp which is registered multiple times with different client ids", func() {
-			idp, err := mockidp.NewIdentityServer("mytestserver", 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			prefix := "customprefix:"
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
@@ -521,6 +466,8 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix1+user)
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
 			makeAPIServerRequestAndExpectCode(token, http.StatusForbidden)
 
 			// matches the second oidc resource - should authenticate and authorize
@@ -530,19 +477,12 @@ var _ = Describe("Integration", func() {
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			deleteRoleBinding(ctx, roleBinding)
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 	})
 
 	Context("Authenticating user against the webhook authenticator via token from a trusted identity provider", func() {
-		const (
-			serverName = "test-server"
-		)
 		var (
 			makeTokenReviewRequest = func(apiserverToken, userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
 				caCertPool := x509.NewCertPool()
@@ -586,10 +526,8 @@ var _ = Describe("Integration", func() {
 		)
 
 		It("Should authenticate token with default prefixes for group and user", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 
@@ -610,17 +548,88 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
 			Expect(review.Status.User.Groups).To(ConsistOf(fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "employee")))
 
-			err = idp.Stop(ctx)
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate tokens signed by different keys from the same identity provider (verified remotely)", func() {
+			idp := createAndStartIDPServer(3)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			signAndRequest := func(signingKeyIndex int) {
+				token, err := idp.Sign(signingKeyIndex, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+				Expect(review.Status.Authenticated).To(BeTrue())
+				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+			}
+
+			signAndRequest(0)
+			signAndRequest(2)
+			signAndRequest(1)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate tokens signed by different keys from the same identity provider (verified offline)", func() {
+			idp := createAndStartIDPServer(3)
+			keys, err := idp.PublicKeySetAsBytes()
 			Expect(err).NotTo(HaveOccurred())
+			// stop the server to ensure that the tokens will not be verified remotely
+			stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			signAndRequest := func(signingKeyIndex int) {
+				token, err := idp.Sign(signingKeyIndex, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+				Expect(review.Status.Authenticated).To(BeTrue())
+				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+			}
+
+			signAndRequest(1)
+			signAndRequest(2)
+			signAndRequest(0)
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate token with custom prefixes for group and user", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "usr:"
 			groupsPrefix := "gr:"
@@ -645,17 +654,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate token but not return any groups for user", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "usr:"
 			groupsPrefix := "gr:"
@@ -682,17 +686,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate token and return correct user and groups", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "usr:"
 			userClaim := "custom-sub"
@@ -730,17 +729,12 @@ var _ = Describe("Integration", func() {
 			}
 			Expect(review.Status.User.Groups).To(ConsistOf(prefixedGroups))
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate users prefixed with `system:`", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "system:"
 			userClaim := "custom-sub"
@@ -764,17 +758,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate users prefixed with `system:` when user prefixing is disabled", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "-"
 			userClaim := "custom-sub"
@@ -798,17 +787,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not return groups prefixed with `system:`", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "userpref:"
 			userClaim := "custom-sub"
@@ -837,17 +821,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not return groups prefixed with `system:` when group prefixing is disabled", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "userpref:"
 			userClaim := "custom-sub"
@@ -876,17 +855,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{"admin"}))
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user if username claim is missing", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "userpref:"
 			userClaim := "custom-sub"
@@ -915,17 +889,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should not authenticate user if audience claim is wrong", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix := "userpref:"
 			userClaim := "custom-sub"
@@ -955,17 +924,12 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
 		It("Should authenticate user against the target audience", func() {
-			idp, err := mockidp.NewIdentityServer(serverName, 1)
-			Expect(err).NotTo(HaveOccurred())
-			err = idp.Start()
-			Expect(err).NotTo(HaveOccurred())
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
 
 			userPrefix1 := "userpref1:"
 			userPrefix2 := "userpref2:"
@@ -1021,9 +985,6 @@ var _ = Describe("Integration", func() {
 			Expect(review2.Status.Authenticated).To(BeTrue())
 			Expect(review2.Status.User.Username).To(Equal(userPrefix2 + user))
 			Expect(review2.Status.User.Groups).To(ConsistOf(groupsPrefix2 + "admin"))
-
-			err = idp.Stop(ctx)
-			Expect(err).NotTo(HaveOccurred())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider2)

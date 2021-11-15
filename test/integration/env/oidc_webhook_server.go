@@ -39,9 +39,9 @@ type oidcWebhookServer struct {
 	exited chan struct{}
 }
 
-func (s *oidcWebhookServer) configureDefaults() error {
+func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 	if s.KubeconfigDir == "" {
-		kubeconfigDir, err := os.MkdirTemp("", "oidc-target-cluster-kubeconfig-")
+		kubeconfigDir, err := os.MkdirTemp(rootDir, "oidc-target-cluster-kubeconfig-")
 		if err != nil {
 			return err
 		}
@@ -49,7 +49,7 @@ func (s *oidcWebhookServer) configureDefaults() error {
 	}
 
 	if s.CertDir == "" {
-		tempDir, err := os.MkdirTemp("", "self-generated-oidc-server-certificates-")
+		tempDir, err := os.MkdirTemp(rootDir, "oidc-server-certificates-")
 		if err != nil {
 			return err
 		}
@@ -108,14 +108,15 @@ func (s *oidcWebhookServer) configureDefaults() error {
 	}
 
 	kubeconfigFile := filepath.Join(s.KubeconfigDir, "kubeconfig.yaml")
-	s.Args = append([]string{
+	s.Args = append(
+		s.Args,
 		"--v=2",
-		"--tls-cert-file=" + filepath.Join(s.CertDir, "tls.crt"),
-		"--tls-private-key-file=" + filepath.Join(s.CertDir, "tls.key"),
-		"--authentication-kubeconfig=" + kubeconfigFile,
-		"--authorization-kubeconfig=" + kubeconfigFile,
-		"--kubeconfig=" + kubeconfigFile,
-	}, s.Args...)
+		"--tls-cert-file="+filepath.Join(s.CertDir, "tls.crt"),
+		"--tls-private-key-file="+filepath.Join(s.CertDir, "tls.key"),
+		"--authentication-kubeconfig="+kubeconfigFile,
+		"--authorization-kubeconfig="+kubeconfigFile,
+		"--kubeconfig="+kubeconfigFile,
+	)
 
 	return nil
 }
