@@ -11,8 +11,10 @@ import (
 	"context"
 	"io/fs"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,12 +46,14 @@ var (
 	k8sClient                                    client.Client
 	clientset                                    *kubernetes.Clientset
 	ctx                                          = context.Background()
+	dumpLogs                                     = false
 )
 
 const (
-	dumpLogs = false
-	timeout  = time.Second * 10
-	interval = time.Millisecond * 250
+	// If DUMP_LOGS_OIDC_WEBHOOK_ENV=true is set then logs from kube-apiserver and oidc-webhook-authenticator's runs will be written to output files
+	dumpLogsEnvName = "DUMP_LOGS_OIDC_WEBHOOK_ENV"
+	timeout         = time.Second * 10
+	interval        = time.Millisecond * 250
 )
 
 func TestIntegration(t *testing.T) {
@@ -59,6 +63,10 @@ func TestIntegration(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+
+	if v, ok := os.LookupEnv(dumpLogsEnvName); ok {
+		dumpLogs = strings.ToLower(v) == "true"
+	}
 
 	By("bootstrapping test environment")
 	testEnv = &oidctestenv.OIDCWebhookTestEnvironment{

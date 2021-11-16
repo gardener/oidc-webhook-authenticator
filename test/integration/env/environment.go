@@ -45,7 +45,7 @@ type OIDCWebhookTestEnvironment struct {
 	OIDCOut io.Writer
 	OIDCErr io.Writer
 
-	// OIDCOut, OIDCErr specify where the kube-apiserver should write its StdOut, StdErr to.
+	// APIServerOut, APIServerErr specify where the kube-apiserver should write its StdOut, StdErr to.
 	// If not specified, the output will be discarded.
 	APIServerOut io.Writer
 	APIServerErr io.Writer
