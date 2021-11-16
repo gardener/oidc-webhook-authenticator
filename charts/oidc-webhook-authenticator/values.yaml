@@ -4,6 +4,8 @@
 
 virtualGarden:
   enabled: false
+  user:
+    name: ""
 
 replicaCount: 1
 
