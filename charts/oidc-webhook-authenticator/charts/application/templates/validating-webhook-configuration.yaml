@@ -1,7 +1,15 @@
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: {{ include "oidc-webhook-authenticator.name" . }}
+  {{- if .Values.global.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "oidc-webhook-authenticator.name" . }}
+  {{- end }}
 webhooks:
 - name: validation.oidc.webhook.authenticator
   rules:
@@ -30,4 +38,8 @@ webhooks:
       name: {{ include "oidc-webhook-authenticator.name" . }}
       path: /webhooks/validating
     {{- end }}
-    caBundle: {{ required ".Values.webhookConfig.caBundle is required" (b64enc .Values.webhookConfig.caBundle) }}
+    {{- if and .Values.virtualGarden.enabled .Values.global.certManager.enabled}}
+    {{- fail "When .virtualGarden.enabled is true global.certManager.enabled should be false" }}
+    {{- else if ( not .Values.global.certManager.enabled ) }}
+    caBundle: {{ required ".Values.webhookConfig.caBundle is required" .Values.webhookConfig.caBundle |  b64enc }}
+    {{- end }}

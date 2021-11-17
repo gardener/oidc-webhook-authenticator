@@ -18,5 +18,9 @@ fi
 cd "${SOURCE_PATH}"
 
 go vet ./...
-
 go fmt ./...
+
+curl -s "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3" | bash -s -- --version 'v3.5.4'
+
+echo "> Lint helm charts"
+make helm-lint

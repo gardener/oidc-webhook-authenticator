@@ -23,4 +23,7 @@ testbin
 *.swo
 *~
 dive.log
+
 /tmp
+
+/helm-templates

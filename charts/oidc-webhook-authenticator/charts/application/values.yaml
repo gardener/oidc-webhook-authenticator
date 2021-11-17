@@ -1,1 +1,20 @@
-../../values.yaml
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+virtualGarden:
+  enabled: false
+  user:
+    name: ""
+
+# Specifies if rolebinding to role extension-apiserver-authentication-reader in kube-system namespace and clusterrolebinding to cluster role system:auth-delegator
+# should be created for the webhook's service account. Usually there is no need for this value to be `false`.
+installDelegatorBindings: true
+
+webhookConfig:
+  # CA bundle used to verify the webhook server certificate.
+  # If global.certManager.enabled is set to `true` then `caBundle` value will be ignored.
+  caBundle: |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
