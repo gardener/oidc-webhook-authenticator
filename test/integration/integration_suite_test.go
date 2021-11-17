@@ -64,9 +64,7 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	if v, ok := os.LookupEnv(dumpLogsEnvName); ok {
-		if shouldDumpLogs, err := strconv.ParseBool(v); err != nil {
-			dumpLogs = shouldDumpLogs
-		}
+		dumpLogs, _ = strconv.ParseBool(v)
 	}
 
 	By("bootstrapping test environment")
