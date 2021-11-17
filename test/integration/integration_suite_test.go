@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -65,7 +64,9 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	if v, ok := os.LookupEnv(dumpLogsEnvName); ok {
-		dumpLogs = strings.ToLower(v) == "true"
+		if shouldDumpLogs, err := strconv.ParseBool(v); err != nil {
+			dumpLogs = shouldDumpLogs
+		}
 	}
 
 	By("bootstrapping test environment")

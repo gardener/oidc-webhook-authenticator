@@ -1005,7 +1005,7 @@ func waitForOIDCResourceToBeCreated(ctx context.Context, k8sClient client.Client
 }
 
 func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client, oidc *authenticationv1alpha1.OpenIDConnect) {
-	err := k8sClient.Delete(ctx, oidc)
+	err := client.IgnoreNotFound(k8sClient.Delete(ctx, oidc))
 	Expect(err).NotTo(HaveOccurred())
 
 	openidconnectLookupKey := client.ObjectKeyFromObject(oidc)
