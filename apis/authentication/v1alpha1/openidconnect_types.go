@@ -64,11 +64,11 @@ type OIDCAuthenticationSpec struct {
 	// See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 	ClientID string `json:"clientID"`
 
-	// +optional
-	// +kubebuilder:default=sub
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 
 	// UsernameClaim is the JWT field to use as the user's username.
-	UsernameClaim *string `json:"usernameClaim,omitempty"`
+	UsernameClaim *string `json:"usernameClaim"`
 
 	// +optional
 
@@ -76,11 +76,10 @@ type OIDCAuthenticationSpec struct {
 	// the provided value. A value "oidc:" would result in usernames like "oidc:john".
 	//
 	// If not provided, the prefix defaults to "( .metadata.name )/".
-	// The value "-"" can be used to disable all prefixing.
+	// The value "-" can be used to disable all prefixing.
 	UsernamePrefix *string `json:"usernamePrefix,omitempty"`
 
 	// +optional
-	// +kubebuilder:default=groups
 
 	// GroupsClaim, if specified, causes the OIDCAuthenticator to try to populate the user's
 	// groups with an ID Token field. If the GroupsClaim field is present in an ID Token the value
@@ -93,7 +92,7 @@ type OIDCAuthenticationSpec struct {
 	// value. A value "oidc:" would result in groups like "oidc:engineering" and "oidc:marketing".
 	//
 	// If not provided, the prefix defaults to "( .metadata.name )/".
-	// The value "-"" can be used to disable all prefixing.
+	// The value "-" can be used to disable all prefixing.
 	GroupsPrefix *string `json:"groupsPrefix,omitempty"`
 
 	// +kubebuilder:default={RS256}
@@ -118,7 +117,7 @@ type OIDCAuthenticationSpec struct {
 	// +optional
 
 	// CABundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate.
-	// If unspecified, system trust roots on the apiserver are used.
+	// If unspecified, system's trusted certificates are used.
 	CABundle []byte `json:"caBundle,omitempty"`
 
 	// +optional
