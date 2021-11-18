@@ -7,54 +7,1039 @@
 package integration_test
 
 import (
+	"bytes"
+	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+
+	authenticationv1 "k8s.io/api/authentication/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
+	mockidp "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
 )
 
 var _ = Describe("Integration", func() {
 	const (
-		userToken1               = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZW1haWwiOiJqb2huZG9lQGV4YW1wbGUuY29tIiwiaXNzIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6NTAwMDIiLCJhdWQiOiIxMjM0NTY3ODkwIiwiZXhwIjoxNzcyMjg3NjE5fQ.wEG2zFLpkfe9pxcpndVNMz1Szw-4-XewXDnMYW6edt6vusju-N_a3AIMMaFNKv-T77GQhg1PfiPb-dTt_FJE34SzW73ccWXr_WuH9fu0dBN8JbJ0yEbQlWjHqV3-aLPLMqH0x2DPInA2N9RQuhHwyPsdARpm7k4LYHCTutJRl0fj4Jt8ZLpxVoowiJNclP6zBJ6FzjGdCHz26ZiMk_gNEN8xL8b6IChKOs4L48Kw5llcC59h9f-PQKSBCteq8pxG12z2umSVEGq5WcYmkUQNOV-VyplV200OLXG21N6pB8VtnFcUj_nBDyacJXxdOm6TaK-HuTeo_hGnKCmjxUfEvQ"
-		userToken2               = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzYW1wbGUiLCJuYW1lIjoiSm9obiBEb2UiLCJhZG1pbiI6dHJ1ZSwiaWF0IjoxNTE2MjM5MDIyLCJjdXN0b21jbGFpbSI6ImpvaG5kb2VAZXhhbXBsZS5jb20iLCJpc3MiOiJodHRwczovL2xvY2FsaG9zdDo1MDAwMyIsImF1ZCI6InNvbWUtY2xpZW50LWlkIiwiZXhwIjoxNzcyMjg3NjE5fQ.YDeG1KmyB8XpWrkUf99WYw2lWdeT5_wz1DrLGspiVgqpFFhZeImbUwF9eWo6qQGyRou_GlRX2tE5hPT4jCBufx5qx6XxrtxF9AU0plr_D8PKeelyYTNmWboAmr2nGWIqxJqJJfpmKhVKYduPXdxCX6qzyLO97nNHMtyvegzwPhiW54GU4t_fyssbSYFAEe8zenqeDgCE81Qv73SM2aNEmnvFJ5ynNmUwYQRyC5hLf3PsHen8AaPOBngTfyrmZ9leV2vCqu0r5up-HnEVmPg_EpMiYzdDN7BAvxMAXmAsgs2dokgiOLnzFkwe7R2ABYqWGkq-voNGUm0dJQyagtW76g"
-		userToken3               = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzYW1wbGUiLCJuYW1lIjoiSm9obiBEb2UiLCJhZG1pbiI6dHJ1ZSwiaWF0IjoxNTE2MjM5MDIyLCJjdXN0b21jbGFpbSI6ImpvaG5kb2VAZXhhbXBsZS5jb20iLCJpc3MiOiJodHRwczovL2xvY2FsaG9zdDo1MDAwMyIsImF1ZCI6InNvbWUtY2xpZW50LWlkIiwiZXhwIjoxNzcyMjg3NjE5fQ.bN0MeuWp6ijX_YKU6AgjiMVCSUA0nsAoO-4ZgZpSwYrkq3OzrjCIv8LZe1E_n4UacM3gGk_utVoo9ERdPuOvkkhj7bde9yDTHSTo1EOzDYYJ4pufKzzM8ctiRPHOp7nJyc4-c8L-s5IyYXO9Hf4eNE9bK9Wkzd9UJOK6jDc-ey_EO-AhZ3wfWEijxI5PYNvahcwdJQIi1O_YtRRPNt-NbQJcxbcXQxkO6eYXUa6M0rSo6ppc0wXttbhWBrpafdIQRVOx8inD5b3qhbqQe_wboyOR0FaXaIm4zxyB4sAyZ28f2AuJwButvy-E0Zhs3v9hDEzW8ovNPENFbCdoZhuBxw"
-		userTokenWithKid         = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlRXck5DTDdvU0p3WDhlcWhRX093RDZuSWZqOEs3YzJTZ3ZrMlhkNGo0b0kifQ.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZW1haWwiOiJqb2huZG9lQGV4YW1wbGUuY29tIiwiaXNzIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6NTAwMDIiLCJhdWQiOiIxMjM0NTY3ODkwIiwiZXhwIjoxNzcyMjg3NjE5fQ.R5-3W0BLTUz4wI3pyWb-nDx45mlge5lWgezYodi66bdHGLkZ2iiH0KCPxKdGxI5lsRcAtYM5-cNfhyB6AoyEe4BPa7H2hPaXslS_IgWTKRQzGlfXFZu6eBJSbkqMEjUt4gfTiMRgkYoz2Y11m__TXsopYi2FSdqRF79EW5_tYiwnwczrMr-gAo6R1czLqmIeeQqvDvHuifovBFImkrvwFc7DYJyg6_vdLnGQ_roXmDp2j8m16QMB4DZcKNR8cJemNYI6PC9sgCHhLPwq6IDAoryciudt9k-JUmO5rdYSuld_gdqnyS0qNqz4iX_4vgxZyJjvTPqjjIho8GzQmZ5C9Q"
-		userTokenStaticKeys      = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlRXck5DTDdvU0p3WDhlcWhRX093RDZuSWZqOEs3YzJTZ3ZrMlhkNGo0b0kifQ.eyJzdWIiOiJzdGF0aWMiLCJuYW1lIjoiSm9obiBEb2UiLCJhZG1pbiI6dHJ1ZSwiaWF0IjoxNTE2MjM5MDIyLCJlbWFpbCI6ImpvaG5kb2VAZXhhbXBsZS5jb20iLCJpc3MiOiJodHRwczovL2xvY2FsaG9zdDo1MDAwNCIsImF1ZCI6InN0YXRpYyIsImV4cCI6MTc3MjI4NzYxOX0.Gi1T5Gzqmcx-sRrz3b0fCwW0r7h4KD8DCQfQy7g9jgMJz7HJOrL-txLxtqwujhrzqe2dPpqb9v2zYrsWmdWHqTOlNbbHcgR0tC73dLFP4QVeayw2m5O3byqCZ8lvJA0KzlAtUWZce03sPyO6FoTBpwfMS7E3lwd688GgNTxoDMhaVaMlctubjw1v-XuThaJoZE5takV7rZVoXYuP1m5fPOr7kJO2WAciTznz7iIwItSlB9-7wuO3pFPxvE8Q8plK7WpP3G0SXSuTdCC-Pf_c8ipBrsiJQVBuEmaP0b5A7jUie4CZdzjqUMsas6xyqMqxK2Gb1N2mq9h1hUa6bFa_CA"
-		userTokenInvalidClaim    = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZW1haWwxIjoiam9obmRvZUBleGFtcGxlLmNvbSIsImlzcyI6Imh0dHBzOi8vbG9jYWxob3N0OjUwMDAyIiwiYXVkIjoiMTIzNDU2Nzg5MCIsImV4cCI6MTc3MjI4NzYxOX0.Bu8QayDT6dAswYUU6zCgNsD2jLFU2CCgCuaA314JXvl6k08nlwB4f0krYe2Kc6Yj_lQehTq4KSY_Uy-YaJn6XR43jpGa77HsRiBUBp_0dhB7WvZaszx4XJle6oum3bBjV6jXXZaBNUEkIINRNE-KfH41qvH8FDn0xw6F_Lgc3f8GS1EeT1uYK404Dt8L4BF4FPoB0F3MTf77z9HYF4BNNdhBhGpeCNlmZ2KkxyCtikz21_9C2fZ8k1pUyU24T03fLQWXaXFuja5mR4sp301pam-3zRiAdxVW0bdKmf3PDCSKrgnPXu9mvCQnsaueUxWl9ixo0BkwR_6viaIPfonlzg"
-		userTokenInvalidIssuer   = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZW1haWwiOiJqb2huZG9lQGV4YW1wbGUuY29tIiwiaXNzIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6NTAwMTAiLCJhdWQiOiIxMjM0NTY3ODkwIiwiZXhwIjoxNzcyMjg3NjE5fQ.q1uDjNWojuvwdJPO6-WHnlOBSgkEf6i4CZNhqhzYgPYowTDn0wbmYanCHgBp_04eAeqRm9F2Wh4z0j2InE7KaqQiELwfqRfqfV-4uczE8qrDUgUZbIteyGHzTKGjxq0rBws0wJPAkRLdca5t-F0k0uNb8SPM2b8y4I53_hk82xz_Xs_E1mU0FQq_q49osoc6GA0xEojS3nh8jzmao3rzBwC5CSwlTrh9g2kKy2o8-mhMSgOOg2MJhOmDFuNK98d0iPs__1n6CRb9ofLGg6V7M7VHFKEj55Nu5_qGzol92qy_w46LbkhNi_ZsDWAQiqMVDMAnVdoCImvw-ZSeH64kkg"
-		userTokenInvalidClientID = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzYW1wbGUiLCJuYW1lIjoiSm9obiBEb2UiLCJhZG1pbiI6dHJ1ZSwiaWF0IjoxNTE2MjM5MDIyLCJjdXN0b21jbGFpbSI6ImpvaG5kb2VAZXhhbXBsZS5jb20iLCJpc3MiOiJodHRwczovL2xvY2FsaG9zdDo1MDAwMyIsImF1ZCI6InNvbWUtY2xpZW50LWlkLWludmFsaWQiLCJleHAiOjE3NzIyODc2MTl9.G2b1DDLstJ65KlvyeHur6JH58fnU_R4rQc7GCE1VTQktT59NHIj62UK2yjnmvXlXY7FDFhoOxfhKi-mqPMFjH8ZzMjg2duGvO2xHvm26kAQo0PaIzt7Ui_HEFEeo1WrSEmCJW1Bl1AhrhZofFLiX_5QXia_m45bZMi5xWCGHfo9mz3uIDQuxlW4dx1XYeQSZWHONQcHf0ESGzeu_R6UT1aGpe4rCOCUC4-aMD9hc1FgkQSGp-ObjcKJ-nSG7WQIK2RQ7-O9ETgP0e3aK48-7H-3AHeqotpjcjHvxHRQgISrF8AindjyKN7KGABxeAoxjsfaf0B5slmywH78f5d7vTg"
-		userTokenInvalidExpired  = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzYW1wbGUiLCJuYW1lIjoiSm9obiBEb2UiLCJhZG1pbiI6dHJ1ZSwiaWF0IjoxNTE2MjM5MDIyLCJjdXN0b21jbGFpbSI6ImpvaG5kb2VAZXhhbXBsZS5jb20iLCJpc3MiOiJodHRwczovL2xvY2FsaG9zdDo1MDAwMyIsImF1ZCI6InNvbWUtY2xpZW50LWlkIiwiZXhwIjoxMDcyMjg3NjE5fQ.JzQlAhVsLEDBGjUi9WvxqkdOEHzWT8oj7kFrnstbVod56hsSuWOcwF2jcyj-oWKTV8GN6rD7tLHgGavD8ER1v1Ef-j7NrLDgflSsr9l9jBEwEEF55icr4T2JvODEKsAU8q1gDqLonbuBQMxTbRRrXQ74N1jhwlagohl9hSXegThNIBfwqHG-HfYR9R8_v5tYUT22Bvg9ILabL2I4goky8XXthdZiF_j-673XTx0xejlXyx6ZhA0LgRz0Jxn_WC4nq0qNz-wgNu1sxEY0D3gmEj3ANJT8ZOEYQmLd-u8R1NqxyXNVNpMUBjvGZKcuCapl-vwG3kZjb2IebrZMFlf4_Q"
-		userTokenUnknownIDP      = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZW1haWwiOiJqb2huZG9lQGV4YW1wbGUuY29tIiwiaXNzIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6NTAwMDIiLCJhdWQiOiIxMjM0NTY3ODkwIiwiZXhwIjoxNzcyMjg3NjE5fQ.aP6PIrsPmWfxtEH_HOX9M81sUsLSdhi78pIiezDBY_-pHi1pmMeD9EbdFKZadLzoFFtf6avSmm2oUCWv5rDFHa0vashVFj1tut4F9mXrQdgl6u6Iu0F93tz-f4TvoKlCtvMrdefdCA3E_HuJxfbd2bpp4ICD0Pq0xEIY5dlLDsENlY9SffHQ8H_VJxNk91qNNLPjNSGg0wYrAvhc62tsE8081OWly9rv5YLN6uE-iknFGJBSWzQUMtdTNFEH1Ewmsz2BVMgufHYu5ZhbPlVnK8nfUztWySed5tJwfqabZS_oypir8hwu6Y34XUivx0hKCRpumEygYx-d8UX6ag6kVg"
+		defaultNamespaceName = "default"
+		podReaderRoleName    = "pod-reader"
 	)
 
-	Context("Authenticating user to the kube api-server via trusted identity provider", func() {
-		DescribeTable("user authentication",
-			func(userToken string, expectedStatusCode int) {
-				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				}
-				client := &http.Client{Transport: tr}
-				req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%v/api/v1/pods", apiServerSecurePort), nil)
-				Expect(err).NotTo(HaveOccurred())
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", userToken))
+	var (
+		emailUserNameClaim = "email"
+		stopIDP            = func(ctx context.Context, idp *mockidp.OIDCIdentityServer) {
+			err := idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		createAndStartIDPServer = func(numberOfSigningKeys int) *mockidp.OIDCIdentityServer {
+			idp, err := mockidp.NewIdentityServer(rand.String(10), numberOfSigningKeys)
+			Expect(err).NotTo(HaveOccurred())
+			err = idp.Start()
+			Expect(err).NotTo(HaveOccurred())
+			return idp
+		}
+	)
+
+	Context("Authenticating user to the kube api-server via token from a trusted identity provider", func() {
+		createRoleBindingForUser := func(ctx context.Context, namespace, roleName, username string) *rbacv1.RoleBinding {
+			roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      rand.String(5),
+					Namespace: namespace,
+				},
+				Subjects: []rbacv1.Subject{{
+					Kind:     "User",
+					Name:     username,
+					APIGroup: "rbac.authorization.k8s.io",
+				}},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     roleName,
+				},
+			}, metav1.CreateOptions{})
+
+			Expect(err).NotTo(HaveOccurred())
+			return roleBinding
+		}
+
+		createRoleBindingForGroup := func(ctx context.Context, namespace, roleName, groupName string) *rbacv1.RoleBinding {
+			roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      rand.String(5),
+					Namespace: namespace,
+				},
+				Subjects: []rbacv1.Subject{{
+					Kind:     "Group",
+					Name:     groupName,
+					APIGroup: "rbac.authorization.k8s.io",
+				}},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     roleName,
+				},
+			}, metav1.CreateOptions{})
+
+			Expect(err).NotTo(HaveOccurred())
+			return roleBinding
+		}
+
+		ensureRoleBindingIsDeleted := func(ctx context.Context, roleBinding *rbacv1.RoleBinding) {
+			err := clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(ctx, roleBinding.Name, metav1.DeleteOptions{})
+			if err != nil {
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}
+		}
+
+		makeAPIServerRequestAndExpectCode := func(userToken string, expectedStatusCode int) {
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%v/api/v1/namespaces/default/pods", apiServerSecurePort), nil)
+			Expect(err).NotTo(HaveOccurred())
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", userToken))
+
+			Eventually(func() int {
 				res, err := client.Do(req)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(res.StatusCode).To(Equal(expectedStatusCode))
+				return res.StatusCode
+			}, timeout, interval).Should(Equal(expectedStatusCode))
+
+		}
+
+		It("Should authenticate but not authorize user with a single registered identity provider", func() {
+			idp := createAndStartIDPServer(2)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &emailUserNameClaim
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			claims := defaultClaims()
+			claims["sub"] = "1231"
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["email"] = "johndoe@example.com"
+
+			signedTokenWithFirstKey, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(signedTokenWithFirstKey, http.StatusForbidden)
+
+			signedTokenWithSecondKey, err := idp.Sign(1, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(signedTokenWithSecondKey, http.StatusForbidden)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate but not authorize user with a single registered identity provider and static jwks", func() {
+			idp := createAndStartIDPServer(2)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
+			provider.Name = "static"
+			provider.Spec.JWKS.Keys = keys
+
+			// stop the idp server so that we ensure that the keys will not be fetched over the network
+			stopIDP(ctx, idp)
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+			claims := defaultClaims()
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["sub"] = "my-identity"
+
+			signedTokenWithFirstKey, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(signedTokenWithFirstKey, http.StatusForbidden)
+
+			signedTokenWithSecondKey, err := idp.Sign(1, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(signedTokenWithSecondKey, http.StatusForbidden)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate and authorize user with a single registered identity provider and defaulted claim to `sub`", func() {
+			idp := createAndStartIDPServer(2)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			signedTokenWithFirstKey, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, fmt.Sprintf("%s/%s", provider.Name, user))
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
+			makeAPIServerRequestAndExpectCode(signedTokenWithFirstKey, http.StatusOK)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate and authorize user with two registered identity providers", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			idp1 := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp1)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &emailUserNameClaim
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp1.ServerSecurePort), idp1.CA())
+			provider1.Spec.UsernameClaim = &emailUserNameClaim
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
+
+			user := "this-is-my-fake-identity"
+			email := "my.real.identity@example-something-here.com"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp1.ServerSecurePort)
+			claims["email"] = email
+
+			signedTokenFromSecondIDP, err := idp1.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, fmt.Sprintf("%s/%s", provider1.Name, email))
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
+			makeAPIServerRequestAndExpectCode(signedTokenFromSecondIDP, http.StatusOK)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
+		})
+
+		It("Should not authenticate user because of missing required claim", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.RequiredClaims = map[string]string{
+				"admin": "true",
+			}
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate user with required claim", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.RequiredClaims = map[string]string{
+				"admin": "true",
+			}
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["admin"] = "true"
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusForbidden)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because of wrong issuer", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://invalid:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because of wrong audience", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["aud"] = "invalid"
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because of expired token", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["exp"] = time.Now().Add(time.Minute * -10).Unix()
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate and authorize user with custom prefix", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			prefix := "customprefix:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &prefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix+user)
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		DescribeTable("Should authenticate and authorize user with custom prefix for group",
+			func(groups []string, allowedGroup string) {
+				idp := createAndStartIDPServer(1)
+				defer stopIDP(ctx, idp)
+
+				usernamePrefix := "customprefix:"
+				groupNamePrefix := "grprefix:"
+				provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+				provider.Spec.UsernamePrefix = &usernamePrefix
+				provider.Spec.GroupsPrefix = &groupNamePrefix
+
+				waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+				user := "this-is-my-identity"
+				claims := defaultClaims()
+				claims["sub"] = user
+				claims["groups"] = groups
+				claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+				token, err := idp.Sign(0, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				roleBinding := createRoleBindingForGroup(ctx, defaultNamespaceName, podReaderRoleName, groupNamePrefix+allowedGroup)
+				defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
+				makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+				waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 			},
-			// User has no permissions to list pods
-			Entry("valid token from first identity provider", userToken1, http.StatusForbidden),
-			Entry("valid token from second identity provider second key", userToken2, http.StatusForbidden),
-			Entry("valid token from second identity provider first key", userToken3, http.StatusForbidden),
-			Entry("valid token from first identity provider with kid in header", userTokenWithKid, http.StatusForbidden),
-			Entry("valid token validated via static jwks", userTokenStaticKeys, http.StatusForbidden),
-			Entry("invalid token due to no required username claim present", userTokenInvalidClaim, http.StatusUnauthorized),
-			Entry("invalid token due to wrong issuer", userTokenInvalidIssuer, http.StatusUnauthorized),
-			Entry("invalid token due to wrong client id", userTokenInvalidClientID, http.StatusUnauthorized),
-			Entry("invalid token due to expiration timestamp", userTokenInvalidExpired, http.StatusUnauthorized),
-			Entry("valid token from unknown identity provider", userTokenUnknownIDP, http.StatusUnauthorized),
+
+			Entry("Authorize the first group", []string{"podreader1", "podreader2"}, "podreader1"),
+			Entry("Authorize the second group", []string{"podreader1", "podreader2"}, "podreader2"),
 		)
+
+		It("Should not authenticate user with wrong audience", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			prefix := "customprefix:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &prefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["aud"] = "invalid"
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should correctly authenticate and authorize user with valid token from idp which is registered multiple times with different client ids", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			prefix := "customprefix:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &prefix
+			provider.Spec.ClientID = "123"
+
+			prefix1 := "customprefix1:"
+			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider1.Spec.UsernamePrefix = &prefix1
+			provider1.Spec.ClientID = "456"
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["aud"] = "123"
+
+			// matches the first oidc resource - should authenticate but not authorize
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix1+user)
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusForbidden)
+
+			// matches the second oidc resource - should authenticate and authorize
+			claims["aud"] = "456"
+			token, err = idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+	})
+
+	Context("Authenticating user against the webhook authenticator via token from a trusted identity provider", func() {
+		var (
+			makeTokenReviewRequest = func(apiserverToken, userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
+				caCertPool := x509.NewCertPool()
+				caCertPool.AppendCertsFromPEM(ca)
+
+				review := &authenticationv1.TokenReview{
+					Spec: authenticationv1.TokenReviewSpec{
+						Token: userToken,
+					},
+				}
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+				}
+				client := &http.Client{Transport: tr}
+				body, err := json.Marshal(review)
+				Expect(err).NotTo(HaveOccurred())
+				req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
+				Expect(err).NotTo(HaveOccurred())
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", apiserverToken))
+
+				reviewResponse := &authenticationv1.TokenReview{}
+				Eventually(func() bool {
+					res, err := client.Do(req)
+					Expect(err).NotTo(HaveOccurred())
+
+					responseBytes, err := ioutil.ReadAll(res.Body)
+					Expect(err).NotTo(HaveOccurred())
+
+					err = json.Unmarshal(responseBytes, reviewResponse)
+					Expect(err).NotTo(HaveOccurred())
+
+					if expectToAuthenticate {
+						return reviewResponse.Status.Authenticated
+					}
+
+					// do not retry the request
+					return true
+				}, timeout, interval).Should(BeTrue())
+				return reviewResponse
+			}
+		)
+
+		It("Should authenticate token with default prefixes for group and user", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"employee", "admin"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(ConsistOf(fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "employee")))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate tokens signed by different keys from the same identity provider (verified remotely)", func() {
+			idp := createAndStartIDPServer(3)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			signAndRequest := func(signingKeyIndex int) {
+				token, err := idp.Sign(signingKeyIndex, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+				Expect(review.Status.Authenticated).To(BeTrue())
+				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+			}
+
+			signAndRequest(0)
+			signAndRequest(2)
+			signAndRequest(1)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate tokens signed by different keys from the same identity provider (verified offline)", func() {
+			idp := createAndStartIDPServer(3)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			// stop the server to ensure that the tokens will not be verified remotely
+			stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			signAndRequest := func(signingKeyIndex int) {
+				token, err := idp.Sign(signingKeyIndex, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+				Expect(review.Status.Authenticated).To(BeTrue())
+				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+			}
+
+			signAndRequest(1)
+			signAndRequest(2)
+			signAndRequest(0)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate token with custom prefixes for group and user", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate token but not return any groups for user", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate token and return correct user and groups", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			userClaim := "custom-sub"
+			groupsPrefix := "gr:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			realUser := "this-is-my-real-identity"
+			realGroups := []string{"real-admin"}
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin"}
+			claims[groupsClaim] = realGroups
+			claims[userClaim] = realUser
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + realUser))
+
+			prefixedGroups := []string{}
+			for _, v := range realGroups {
+				prefixedGroups = append(prefixedGroups, groupsPrefix+v)
+			}
+			Expect(review.Status.User.Groups).To(ConsistOf(prefixedGroups))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate users prefixed with `system:`", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "system:"
+			userClaim := "custom-sub"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate users prefixed with `system:` when user prefixing is disabled", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "-"
+			userClaim := "custom-sub"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "system:this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not return groups prefixed with `system:`", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "userpref:"
+			userClaim := "custom-sub"
+			groupsPrefix := "system:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin", "master"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not return groups prefixed with `system:` when group prefixing is disabled", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "userpref:"
+			userClaim := "custom-sub"
+			groupsPrefix := "-"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin", "system:master"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(ConsistOf([]string{"admin"}))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user if username claim is missing", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "userpref:"
+			userClaim := "custom-sub"
+			groupsPrefix := "grouppref:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim+"invalid"] = user
+			claims[groupsClaim] = []string{"admin"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user if audience claim is wrong", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "userpref:"
+			userClaim := "custom-sub"
+			groupsPrefix := "grouppref:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin"}
+			claims["aud"] = "invalid"
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate user against the target audience", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix1 := "userpref1:"
+			userPrefix2 := "userpref2:"
+			userClaim := "custom-sub"
+			groupsPrefix1 := "grouppref1:"
+			groupsPrefix2 := "grouppref2:"
+			groupsClaim := "custom-groups"
+			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider1.Spec.UsernameClaim = &userClaim
+			provider1.Spec.UsernamePrefix = &userPrefix1
+			provider1.Spec.GroupsClaim = &groupsClaim
+			provider1.Spec.GroupsPrefix = &groupsPrefix1
+			provider1.Spec.ClientID = "client1"
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
+
+			provider2 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider2.Spec.UsernameClaim = &userClaim
+			provider2.Spec.UsernamePrefix = &userPrefix2
+			provider2.Spec.GroupsClaim = &groupsClaim
+			provider2.Spec.GroupsPrefix = &groupsPrefix2
+			provider2.Spec.ClientID = "client2"
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider2)
+
+			user := "this-is-my-identity"
+			claims1 := defaultClaims()
+			claims1[userClaim] = user
+			claims1[groupsClaim] = []string{"admin"}
+			claims1["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims1["aud"] = "client1"
+
+			token1, err := idp.Sign(0, claims1)
+			Expect(err).NotTo(HaveOccurred())
+
+			claims2 := defaultClaims()
+			claims2[userClaim] = user
+			claims2[groupsClaim] = []string{"admin"}
+			claims2["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims2["aud"] = "client2"
+
+			token2, err := idp.Sign(0, claims2)
+			Expect(err).NotTo(HaveOccurred())
+
+			review1 := makeTokenReviewRequest(apiserverToken, token1, testEnv.OIDCServerCA(), true)
+
+			Expect(review1.Status.Authenticated).To(BeTrue())
+			Expect(review1.Status.User.Username).To(Equal(userPrefix1 + user))
+			Expect(review1.Status.User.Groups).To(ConsistOf(groupsPrefix1 + "admin"))
+
+			review2 := makeTokenReviewRequest(apiserverToken, token2, testEnv.OIDCServerCA(), true)
+
+			Expect(review2.Status.Authenticated).To(BeTrue())
+			Expect(review2.Status.User.Username).To(Equal(userPrefix2 + user))
+			Expect(review2.Status.User.Groups).To(ConsistOf(groupsPrefix2 + "admin"))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider2)
+		})
 	})
 })
+
+func waitForOIDCResourceToBeCreated(ctx context.Context, k8sClient client.Client, oidc *authenticationv1alpha1.OpenIDConnect) {
+	err := k8sClient.Create(ctx, oidc)
+	Expect(err).NotTo(HaveOccurred())
+
+	openidconnectLookupKey := client.ObjectKeyFromObject(oidc)
+
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, openidconnectLookupKey, oidc)
+		return err == nil
+	}, timeout, interval).Should(BeTrue())
+}
+
+func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client, oidc *authenticationv1alpha1.OpenIDConnect) {
+	err := client.IgnoreNotFound(k8sClient.Delete(ctx, oidc))
+	Expect(err).NotTo(HaveOccurred())
+
+	openidconnectLookupKey := client.ObjectKeyFromObject(oidc)
+	createdOpenIDConnect := &authenticationv1alpha1.OpenIDConnect{}
+
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, openidconnectLookupKey, createdOpenIDConnect)
+		return apierrors.IsNotFound(err)
+	}, timeout, interval).Should(BeTrue())
+}
+
+func defaultOIDCProvider(issuerUrl string, caBundle []byte) *authenticationv1alpha1.OpenIDConnect {
+	name := rand.String(5)
+	return &authenticationv1alpha1.OpenIDConnect{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "authentication.gardener.cloud/v1alpha1",
+			Kind:       "OpenIDConnect",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+			ClientID:  "my-idp-provider",
+			JWKS:      authenticationv1alpha1.JWKSSpec{},
+			CABundle:  caBundle,
+			IssuerURL: issuerUrl,
+		},
+	}
+}
+
+func defaultClaims() map[string]interface{} {
+	return map[string]interface{}{
+		"iat": time.Now().Unix(),
+		"exp": time.Now().Add(time.Minute * 15).Unix(),
+		"aud": "my-idp-provider",
+	}
+}
