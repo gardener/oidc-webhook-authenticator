@@ -39,7 +39,7 @@ help: ## Display this help.
 ##@ Development
 
 manifests: tools-image ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	docker run --rm --name=oidc-tools -v $(shell pwd):/workspace tools:latest controller-gen rbac:roleName=manager-role webhook paths="./..." crd paths=./apis/... output:crd:artifacts:config=config/crd/bases
 	cat hack/license_boilerplate.yaml.txt > charts/oidc-webhook-authenticator/charts/application/templates/authentication.gardener.cloud_openidconnects.yaml
 	cat config/crd/bases/authentication.gardener.cloud_openidconnects.yaml >> charts/oidc-webhook-authenticator/charts/application/templates/authentication.gardener.cloud_openidconnects.yaml
 

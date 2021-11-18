@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.4.1
+    controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
   name: openidconnects.authentication.gardener.cloud
 spec:
@@ -66,8 +67,8 @@ spec:
             properties:
               caBundle:
                 description: CABundle is a PEM encoded CA bundle which will be used
-                  to validate the OpenID server's certificate. If unspecified, system
-                  trust roots on the apiserver are used.
+                  to validate the OpenID server's certificate. If unspecified, system's
+                  trusted certificates are used.
                 format: byte
                 type: string
               clientID:
@@ -78,7 +79,6 @@ spec:
                 minLength: 1
                 type: string
               groupsClaim:
-                default: groups
                 description: GroupsClaim, if specified, causes the OIDCAuthenticator
                   to try to populate the user's groups with an ID Token field. If
                   the GroupsClaim field is present in an ID Token the value must be
@@ -89,7 +89,7 @@ spec:
                   group names to be prefixed with the value. A value \"oidc:\" would
                   result in groups like \"oidc:engineering\" and \"oidc:marketing\".
                   \n If not provided, the prefix defaults to \"( .metadata.name )/\".
-                  The value \"-\"\" can be used to disable all prefixing."
+                  The value \"-\" can be used to disable all prefixing."
                 type: string
               issuerURL:
                 description: "IssuerURL is the URL the provider signs ID Tokens as.
@@ -147,19 +147,20 @@ spec:
                   type: string
                 type: array
               usernameClaim:
-                default: sub
                 description: UsernameClaim is the JWT field to use as the user's username.
+                minLength: 1
                 type: string
               usernamePrefix:
                 description: "UsernamePrefix, if specified, causes claims mapping
                   to username to be prefix with the provided value. A value \"oidc:\"
                   would result in usernames like \"oidc:john\". \n If not provided,
-                  the prefix defaults to \"( .metadata.name )/\". The value \"-\"\"
+                  the prefix defaults to \"( .metadata.name )/\". The value \"-\"
                   can be used to disable all prefixing."
                 type: string
             required:
             - clientID
             - issuerURL
+            - usernameClaim
             type: object
           status:
             type: object

@@ -989,6 +989,69 @@ var _ = Describe("Integration", func() {
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider2)
 		})
+
+		It("Should not default groups claim", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			usernameClaim := "sub"
+			provider := &authenticationv1alpha1.OpenIDConnect{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "authentication.gardener.cloud/v1alpha1",
+					Kind:       "OpenIDConnect",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "not-defaulted-groups-claim",
+				},
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					ClientID:      "my-idp-provider",
+					UsernameClaim: &usernameClaim,
+					IssuerURL:     fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort),
+					CABundle:      idp.CA(),
+				},
+			}
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			Expect(provider.Spec.GroupsClaim).To(BeNil())
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not default username claim and expect it as required field", func() {
+			provider := &authenticationv1alpha1.OpenIDConnect{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "authentication.gardener.cloud/v1alpha1",
+					Kind:       "OpenIDConnect",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "not-defaulted-username-claim",
+				},
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					ClientID:  "my-idp-provider",
+					IssuerURL: "https://some-issuer",
+				},
+			}
+
+			err := k8sClient.Create(ctx, provider)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal(fmt.Sprintf("OpenIDConnect.authentication.gardener.cloud \"%s\" is invalid: spec.usernameClaim: Required value", provider.Name)))
+		})
 	})
 })
 
@@ -1019,6 +1082,8 @@ func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client
 
 func defaultOIDCProvider(issuerUrl string, caBundle []byte) *authenticationv1alpha1.OpenIDConnect {
 	name := rand.String(5)
+	defaultUsernameClaim := "sub"
+	defaultGroupsClaim := "groups"
 	return &authenticationv1alpha1.OpenIDConnect{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "authentication.gardener.cloud/v1alpha1",
@@ -1028,10 +1093,12 @@ func defaultOIDCProvider(issuerUrl string, caBundle []byte) *authenticationv1alp
 			Name: name,
 		},
 		Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
-			ClientID:  "my-idp-provider",
-			JWKS:      authenticationv1alpha1.JWKSSpec{},
-			CABundle:  caBundle,
-			IssuerURL: issuerUrl,
+			ClientID:      "my-idp-provider",
+			JWKS:          authenticationv1alpha1.JWKSSpec{},
+			CABundle:      caBundle,
+			IssuerURL:     issuerUrl,
+			UsernameClaim: &defaultUsernameClaim,
+			GroupsClaim:   &defaultGroupsClaim,
 		},
 	}
 }
