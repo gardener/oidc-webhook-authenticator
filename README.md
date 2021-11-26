@@ -252,11 +252,10 @@ An overview of the flow:
 
 ## Docker images
 
-Pre-release docker image is available at
+Docker images are available [here](https://console.cloud.google.com/gcr/images/gardener-project/EU/gardener/oidc-webhook-authenticator) or you can choose to pull the latest pre-release version with the following command:
 
 ```text
-eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:latest
-eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:v0.1.0-dev-18eb190a4704e97cf995f33c3fa6b65e1a973358
+docker pull eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:latest
 ```
 
 ## Local development
