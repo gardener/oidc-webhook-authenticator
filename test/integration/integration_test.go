@@ -1052,6 +1052,45 @@ var _ = Describe("Integration", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal(fmt.Sprintf("OpenIDConnect.authentication.gardener.cloud \"%s\" is invalid: spec.usernameClaim: Required value", provider.Name)))
 		})
+
+		It("Should sucessfully remove groups claim from oidc resource", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(ConsistOf(fmt.Sprintf("%s/%s", provider.Name, "admin")))
+
+			provider.Spec.GroupsClaim = nil
+			err = k8sClient.Update(ctx, provider, &client.UpdateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() bool {
+				review = makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+				return len(review.Status.User.Groups) == 0
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
 	})
 })
 
