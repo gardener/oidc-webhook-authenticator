@@ -166,6 +166,7 @@ func (idp *OIDCIdentityServer) buildWellKnownHandler() func(w http.ResponseWrite
 		host := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 		wellKnown := fmt.Sprintf(wellKnownResponseTemplate, host)
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		w.Write([]byte(wellKnown))
 	}
 }
@@ -179,6 +180,7 @@ func (idp *OIDCIdentityServer) buildJWKSHandler() func(w http.ResponseWriter, r 
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		w.Write(jwks)
 	}
 }
