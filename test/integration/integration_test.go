@@ -627,6 +627,63 @@ var _ = Describe("Integration", func() {
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
+		It("Should not authenticate tokens signed by untrusted identity provider (verified offline)", func() {
+			idp := createAndStartIDPServer(3)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			// stop the server to ensure that the tokens will not be verified remotely
+			stopIDP(ctx, idp)
+			idp1 := createAndStartIDPServer(2)
+			defer stopIDP(ctx, idp1)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			signByTrustedIDPAndRequest := func(signingKeyIndex int) {
+				token, err := idp.Sign(signingKeyIndex, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+				Expect(review.Status.Authenticated).To(BeTrue())
+				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+			}
+
+			signByUntrustedIDPAndRequest := func(signingKeyIndex int) {
+				// sign the claims by the untrusted identity provider
+				// the verification should fail
+				token, err := idp1.Sign(signingKeyIndex, claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+				Expect(review.Status.Authenticated).To(BeFalse())
+				Expect(review.Status.User.Username).To(BeEmpty())
+				Expect(review.Status.User.Groups).To(BeEmpty())
+			}
+
+			// verification passes so the oidc resources is already reconciled by the oidc-webhook-authenticator
+			signByTrustedIDPAndRequest(1)
+
+			signByUntrustedIDPAndRequest(0)
+			signByUntrustedIDPAndRequest(1)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
 		It("Should authenticate token with custom prefixes for group and user", func() {
 			idp := createAndStartIDPServer(1)
 			defer stopIDP(ctx, idp)
@@ -1087,6 +1144,76 @@ var _ = Describe("Integration", func() {
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because of wrong issuer claim (offline)", func() {
+			idp := createAndStartIDPServer(1)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			// user gets authenticated so the oidc resource is reconciled
+			Expect(review.Status.Authenticated).To(BeTrue())
+
+			// write an invalid issuer claim
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort+1)
+			token, err = idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+			review = makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because of wrong audience claim (offline)", func() {
+			idp := createAndStartIDPServer(1)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			// user gets authenticated so the oidc resource is reconciled
+			Expect(review.Status.Authenticated).To(BeTrue())
+
+			// write an invalid issuer claim
+			claims["aud"] = "something-invalid"
+			token, err = idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+			review = makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
