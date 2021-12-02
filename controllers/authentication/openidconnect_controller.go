@@ -133,7 +133,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		opts.GroupsClaim = *config.Spec.GroupsClaim
 	}
 
-	if config.Spec.GroupsPrefix != nil {
+	if config.Spec.GroupsPrefix != nil && len(*config.Spec.GroupsPrefix) > 0 {
 		if *config.Spec.GroupsPrefix != authenticationv1alpha1.ClaimPrefixingDisabled {
 			opts.GroupsPrefix = *config.Spec.GroupsPrefix
 		}
@@ -145,7 +145,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		opts.UsernameClaim = *config.Spec.UsernameClaim
 	}
 
-	if config.Spec.UsernamePrefix != nil {
+	if config.Spec.UsernamePrefix != nil && len(*config.Spec.UsernamePrefix) > 0 {
 		if *config.Spec.UsernamePrefix != authenticationv1alpha1.ClaimPrefixingDisabled {
 			opts.UsernamePrefix = *config.Spec.UsernamePrefix
 		}

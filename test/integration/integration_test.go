@@ -858,6 +858,148 @@ var _ = Describe("Integration", func() {
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
+		It("Should return prefixed user when userPrefix is empty string", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := ""
+			userClaim := "custom-sub"
+			groupsPrefix := "groupspref:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin", "dev"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(ConsistOf([]string{groupsPrefix + "admin", groupsPrefix + "dev"}))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should return prefixed user when userPrefix is empty string (offline)", func() {
+			idp := createAndStartIDPServer(1)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			stopIDP(ctx, idp)
+
+			userPrefix := ""
+			userClaim := "custom-sub"
+			groupsPrefix := "groupspref:"
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin", "dev"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(ConsistOf([]string{groupsPrefix + "admin", groupsPrefix + "dev"}))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should return prefixed groups when groupsPrefix is empty string", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "userpref:"
+			userClaim := "custom-sub"
+			groupsPrefix := ""
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin", "dev"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(ConsistOf([]string{fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "dev")}))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should return prefixed groups when groupsPrefix is empty string (offline)", func() {
+			idp := createAndStartIDPServer(1)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			stopIDP(ctx, idp)
+
+			userPrefix := "userpref:"
+			userClaim := "custom-sub"
+			groupsPrefix := ""
+			groupsClaim := "custom-groups"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernameClaim = &userClaim
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsClaim = &groupsClaim
+			provider.Spec.GroupsPrefix = &groupsPrefix
+			provider.Spec.JWKS.Keys = keys
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims[userClaim] = user
+			claims[groupsClaim] = []string{"admin", "dev"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(ConsistOf([]string{fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "dev")}))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
 		It("Should not authenticate user if username claim is missing", func() {
 			idp := createAndStartIDPServer(1)
 			defer stopIDP(ctx, idp)
