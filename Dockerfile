@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Build the manager binary
-FROM golang:1.16.8 AS builder
+FROM golang:1.17.6 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -30,7 +30,7 @@ USER 65532:65532
 EXPOSE 10443/tcp
 
 LABEL org.opencontainers.image.authors="Gardener contributors"
-LABEL org.opencontainers.image.description="Kubernetes Webhook Authenticator that allows for dynamic registration of OpenID Connect providers ."
+LABEL org.opencontainers.image.description="Kubernetes Webhook Authenticator that allows for dynamic registration of OpenID Connect providers."
 LABEL org.opencontainers.image.documentation="https://github.com/gardener/oidc-webhook-authenticator"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.source="https://github.com/gardener/oidc-webhook-authenticator"
