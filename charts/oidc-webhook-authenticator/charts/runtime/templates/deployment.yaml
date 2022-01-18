@@ -32,9 +32,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ include "oidc-webhook-authenticator.name" . }}
-      {{- if .Values.automountServiceAccountToken }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
-      {{- end }}
       containers:
       - name: {{ include "oidc-webhook-authenticator.name" . }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
