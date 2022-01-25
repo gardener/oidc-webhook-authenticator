@@ -10,7 +10,6 @@ oidc-webhook-authenticator:
       version:
         preprocess: inject-commit-hash
       publish:
-        oci-builder: kaniko
         dockerimages:
           oidc-webhook-authenticator:
             registry: gcr-readwrite
