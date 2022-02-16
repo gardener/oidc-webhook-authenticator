@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Build the manager binary
-FROM golang:1.17.6 AS builder
+FROM golang:1.17.7 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -22,7 +22,7 @@ COPY webhook/ webhook/
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
 
-FROM alpine:3.13.6
+FROM alpine:3.15.0
 RUN apk --no-cache add ca-certificates
 WORKDIR /
 COPY --from=builder /workspace/oidc-webhook-authenticator .
