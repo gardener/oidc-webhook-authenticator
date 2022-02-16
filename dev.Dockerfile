@@ -4,7 +4,7 @@
 
 FROM k8s.gcr.io/kube-apiserver:v1.22.1 as kube-apiserver
 FROM quay.io/coreos/etcd:v3.5.1 as etcd
-FROM golang:1.17.6 AS tools
+FROM golang:1.17.7 AS tools
 
 COPY --from=kube-apiserver /usr/local/bin/kube-apiserver /testbin/kube-apiserver
 COPY --from=etcd /usr/local/bin/etcd /testbin/etcd
