@@ -61,10 +61,6 @@ var _ = Describe("Integration", func() {
 			groupsClaim := "groups"
 			groupsPrefix := "groups-pref:"
 			openidconnect := &authenticationv1alpha1.OpenIDConnect{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "authentication.gardener.cloud/v1alpha1",
-					Kind:       "OpenIDConnect",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-oidc",
 					Namespace: "default",
