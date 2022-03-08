@@ -54,7 +54,52 @@ var _ = Describe("Integration", func() {
 		}
 	)
 
-	Context("Authenticating user to the kube api-server via token from a trusted identity provider", func() {
+	Context("Creating an openid resource", func() {
+		It("A new OpenIDConnect controller resource is successfully created", func() {
+			usernameClaim := "subject"
+			usernamePrefix := "user-pref:"
+			groupsClaim := "groups"
+			groupsPrefix := "groups-pref:"
+			openidconnect := &authenticationv1alpha1.OpenIDConnect{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-oidc",
+					Namespace: "default",
+				},
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					IssuerURL:      "https://localhost:1234",
+					ClientID:       "some-client-id",
+					UsernameClaim:  &usernameClaim,
+					UsernamePrefix: &usernamePrefix,
+					GroupsClaim:    &groupsClaim,
+					GroupsPrefix:   &groupsPrefix,
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, openidconnect)).To(Succeed())
+			createdOIDC := &authenticationv1alpha1.OpenIDConnect{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-oidc",
+					Namespace: "default",
+				},
+			}
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(createdOIDC), createdOIDC)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(createdOIDC.Spec.IssuerURL).To(Equal(openidconnect.Spec.IssuerURL))
+			Expect(createdOIDC.Spec.ClientID).To(Equal(openidconnect.Spec.ClientID))
+			Expect(createdOIDC.Spec.UsernameClaim).To(Equal(openidconnect.Spec.UsernameClaim))
+			Expect(createdOIDC.Spec.UsernamePrefix).To(Equal(openidconnect.Spec.UsernamePrefix))
+			Expect(createdOIDC.Spec.GroupsClaim).To(Equal(openidconnect.Spec.GroupsClaim))
+			Expect(createdOIDC.Spec.GroupsPrefix).To(Equal(openidconnect.Spec.GroupsPrefix))
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, createdOIDC)
+		})
+	})
+
+	Context("Authenticating user to the kube-apiserver via token from a trusted identity provider", func() {
 		createRoleBindingForUser := func(ctx context.Context, namespace, roleName, username string) *rbacv1.RoleBinding {
 			roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1112,6 +1157,31 @@ var _ = Describe("Integration", func() {
 			claims[userClaim] = user
 			claims[groupsClaim] = []string{"admin"}
 			claims["aud"] = "invalid"
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user if target issuer url is different from the actual issuer url", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v/", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
