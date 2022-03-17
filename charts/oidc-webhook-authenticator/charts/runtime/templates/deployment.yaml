@@ -27,6 +27,12 @@ spec:
     metadata:
       annotations:
         checksum/secret-oidc-webhook-authenticator-tls: {{ include (print $.Template.BasePath "/secret-tls.yaml") . | sha256sum }}
+        {{- if .Values.kubeconfig }}
+        checksum/secret-oidc-webhook-authenticator-kubeconfig: {{ include (print $.Template.BasePath "/secret-kubeconfig.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.auth.kubeconfig }}
+        checksum/secret-oidc-webhook-authenticator-auth-kubeconfig: {{ include (print $.Template.BasePath "/secret-auth-kubeconfig.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
