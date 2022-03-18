@@ -12,9 +12,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	mock "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
 	. "github.com/onsi/ginkgo"
@@ -458,18 +461,54 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Context("request to IDP server with valid CA certificate", func() {
 				It("request should succeed", func() {
 					serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-					keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
-					keySetString := fmt.Sprintf("%#v", keySet)
-					Expect(keySetString).To(ContainSubstring(serverURL))
-					Expect(err).NotTo(HaveOccurred())
+					Eventually(func() bool {
+						keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+						if err != nil {
+							return false
+						}
+						keySetString := fmt.Sprintf("%#v", keySet)
+						return strings.Contains(keySetString, serverURL)
+					}, time.Second*10, time.Second).Should(BeTrue())
+				})
+				It("request should succeed and token should be verified without errors", func() {
+					serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+					Eventually(func() bool {
+						keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+						if err != nil {
+							return false
+						}
+
+						claims := map[string]interface{}{
+							"someclaim": "somevalue",
+						}
+						token, err := idp.Sign(0, claims)
+						if err != nil {
+							return false
+						}
+						payload, err := keySet.VerifySignature(ctx, token)
+						if err != nil {
+							return false
+						}
+
+						unmarshaledResp := map[string]string{}
+						err = json.Unmarshal(payload, &unmarshaledResp)
+						if err != nil {
+							return false
+						}
+						return len(unmarshaledResp) == 1 && unmarshaledResp["someclaim"] == "somevalue"
+					}, time.Second*10, time.Second).Should(BeTrue())
 				})
 				It("request should fail because of not matching issuer URL", func() {
 					requestedURL := fmt.Sprintf("https://localhost:%v/", idp.ServerSecurePort)
 					serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-					keySet, err := remoteKeySet(ctx, requestedURL, idp.CA())
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(BeIdenticalTo(fmt.Sprintf(`oidc: issuer did not match the issuer returned by provider, expected "%s/" got "%s"`, serverURL, serverURL)))
-					Expect(keySet).To(BeNil())
+					Eventually(func() bool {
+						keySet, err := remoteKeySet(ctx, requestedURL, idp.CA())
+						if err != nil {
+							expectedError := fmt.Sprintf(`oidc: issuer did not match the issuer returned by provider, expected "%s/" got "%s"`, serverURL, serverURL)
+							return keySet == nil && err.Error() == expectedError
+						}
+						return false
+					}, time.Second*10, time.Second).Should(BeTrue())
 				})
 			})
 		})
