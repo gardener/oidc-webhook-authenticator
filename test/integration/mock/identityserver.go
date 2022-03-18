@@ -9,6 +9,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -104,6 +105,14 @@ func NewIdentityServer(name string, numberOfPrivateKeys int) (*OIDCIdentityServe
 }
 
 func (idp *OIDCIdentityServer) Start() error {
+	return idp.start(0)
+}
+
+func (idp *OIDCIdentityServer) StartWithMaxTLSVersion(version uint16) error {
+	return idp.start(version)
+}
+
+func (idp *OIDCIdentityServer) start(version uint16) error {
 	certDir, err := os.MkdirTemp("", "mock-identity-provider-")
 	if err != nil {
 		return err
@@ -128,7 +137,15 @@ func (idp *OIDCIdentityServer) Start() error {
 		return err
 	}
 	idp.ServerSecurePort = port
-	idp.server = &http.Server{Addr: fmt.Sprintf("localhost:%v", port), Handler: idp.buildHandler()}
+
+	var tlsConf *tls.Config = nil
+	if version != 0 {
+		tlsConf = &tls.Config{
+			MaxVersion: version,
+		}
+	}
+
+	idp.server = &http.Server{Addr: fmt.Sprintf("localhost:%v", port), Handler: idp.buildHandler(), TLSConfig: tlsConf}
 
 	go func() {
 		if err := idp.server.ListenAndServeTLS(certFile, keyFile); err != http.ErrServerClosed {
