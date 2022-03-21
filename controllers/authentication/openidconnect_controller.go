@@ -383,18 +383,20 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 	}
 
 	tr := net.SetTransportDefaults(&http.Transport{
-		TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+		TLSClientConfig: &tls.Config{
+			RootCAs:    caCertPool,
+			MinVersion: tls.VersionTLS12,
+		},
 	})
 
-	client := &http.Client{Transport: tr, Timeout: 30 * time.Second}
+	client := &http.Client{Transport: tr, Timeout: 15 * time.Second}
 
-	ctx = gooidc.ClientContext(ctx, client)
-
-	req, err := http.NewRequest("GET", wellKnown, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnown, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.Do(req.WithContext(ctx))
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +421,8 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
 	}
 
-	return gooidc.NewRemoteKeySet(ctx, p.JWKSURL), nil
+	neverCanceledContext := gooidc.ClientContext(ctx, client)
+	return gooidc.NewRemoteKeySet(neverCanceledContext, p.JWKSURL), nil
 }
 
 // newStaticKeySet returns a KeySet that can validate JSON web tokens.

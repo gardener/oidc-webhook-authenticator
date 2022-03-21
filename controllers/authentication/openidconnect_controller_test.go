@@ -11,6 +11,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -511,6 +512,45 @@ var _ = Describe("OpenIDConnect controller", func() {
 					}, time.Second*10, time.Second).Should(BeTrue())
 				})
 			})
+		})
+	})
+
+	Describe("Use a mocked identity provider offering specific TLS version", func() {
+		It("request should fail because offered TLS version is < 1.2", func() {
+			idp, err := mock.NewIdentityServer("test-idp", 1)
+			defer idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			err = idp.StartWithMaxTLSVersion(tls.VersionTLS11)
+			Expect(err).NotTo(HaveOccurred())
+
+			serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			Eventually(func() bool {
+				keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+				if err != nil {
+					expectedError := fmt.Sprintf(`Get "%s/.well-known/openid-configuration": remote error: tls: protocol version not supported`, serverURL)
+					fmt.Println(err.Error())
+					return keySet == nil && err.Error() == expectedError
+				}
+				return false
+			}, time.Second*10, time.Second).Should(BeTrue())
+		})
+
+		It("request should succeed because offered TLS version is >= 1.2", func() {
+			idp, err := mock.NewIdentityServer("test-idp", 1)
+			defer idp.Stop(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			err = idp.StartWithMaxTLSVersion(tls.VersionTLS12)
+			Expect(err).NotTo(HaveOccurred())
+
+			serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			Eventually(func() bool {
+				keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+				if err != nil {
+					return false
+				}
+				keySetString := fmt.Sprintf("%#v", keySet)
+				return strings.Contains(keySetString, serverURL)
+			}, time.Second*10, time.Second).Should(BeTrue())
 		})
 	})
 })
