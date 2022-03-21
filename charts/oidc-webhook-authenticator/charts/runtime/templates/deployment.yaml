@@ -66,6 +66,14 @@ spec:
             scheme: HTTPS
           initialDelaySeconds: 10
           periodSeconds: 20
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: 10443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 15
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:
