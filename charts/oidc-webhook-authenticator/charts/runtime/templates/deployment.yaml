@@ -39,6 +39,24 @@ spec:
     spec:
       serviceAccountName: {{ include "oidc-webhook-authenticator.name" . }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- if or .Values.autoscaling.hpa.enabled (gt (int .Values.replicaCount) 1) }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - {{ include "oidc-webhook-authenticator.name" . }}
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: kubernetes.io/hostname
+            weight: 1
+      {{- end }}
       containers:
       - name: {{ include "oidc-webhook-authenticator.name" . }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
