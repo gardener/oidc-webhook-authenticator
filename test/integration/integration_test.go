@@ -1396,6 +1396,32 @@ var _ = Describe("Integration", func() {
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
 
+		It("Should not authenticate user because of expired token", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["exp"] = time.Now().Add(time.Minute * -1).Unix()
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
 		It("Should not authenticate user because of wrong audience claim (offline)", func() {
 			idp := createAndStartIDPServer(1)
 			keys, err := idp.PublicKeySetAsBytes()
