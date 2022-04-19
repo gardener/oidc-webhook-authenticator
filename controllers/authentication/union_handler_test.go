@@ -16,7 +16,6 @@ var _ = Describe("OpenidconnectWebhook", func() {
 	const (
 		issuer1     = "https://issuer1"
 		issuer2     = "https://issuer2"
-		issuer3     = "https://issuer3"
 		handlerKey1 = "my-unique-name-1"
 		handlerKey2 = "my-unique-name-2"
 		handlerKey3 = "my-unique-name-3"

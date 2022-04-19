@@ -205,7 +205,11 @@ func (u *unionAuthTokenHandler) getIssuerURL(ctx context.Context, token string) 
 		return "", errors.New("cannot parse jwt token")
 	}
 
-	tok.UnsafeClaimsWithoutVerification(&claims)
+	err = tok.UnsafeClaimsWithoutVerification(&claims)
+	if err != nil {
+		return "", errors.New("cannot parse claims")
+	}
+
 	iss, ok := claims["iss"].(string)
 	if !ok {
 		return "", errors.New("cannot retrieve issuer URL")

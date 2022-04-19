@@ -110,7 +110,6 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-
 		return err
 	}
 
@@ -123,7 +122,6 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 
 	if err = (authReconciler).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "OpenIDConnect")
-
 		return err
 	}
 
@@ -132,22 +130,26 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		Log:           ctrl.Log.WithName("webhooks").WithName("TokenReview"),
 	}
 
-	if _, err := opts.SecureServing.Serve(newHandler(opts, authWH, mgr.GetScheme()), 0, ctx.Done()); err != nil {
-		setupLog.Error(err, "problem starting secure server")
+	handler, err := newHandler(opts, authWH, mgr.GetScheme())
+	if err != nil {
+		setupLog.Error(err, "problem initializing handler")
+		return err
+	}
 
+	if _, err := opts.SecureServing.Serve(handler, 0, ctx.Done()); err != nil {
+		setupLog.Error(err, "problem starting secure server")
 		return err
 	}
 
 	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
-
 		return err
 	}
 
 	return nil
 }
 
-func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) http.Handler {
+func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
 	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
 
 	healthz.InstallHandler(pathRecorder)
@@ -158,13 +160,22 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	oidc := &authenticationv1alpha1.OpenIDConnect{}
 
 	defaultingWebhook := admission.DefaultingWebhookFor(oidc)
-	defaultingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Mutating"))
-	defaultingWebhook.InjectScheme(scheme)
+	if err := defaultingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Mutating")); err != nil {
+		return nil, err
+	}
+	if err := defaultingWebhook.InjectScheme(scheme); err != nil {
+		return nil, err
+	}
 	pathRecorder.Handle("/webhooks/mutating", defaultingWebhook)
 
 	validatingWebhook := admission.ValidatingWebhookFor(oidc)
-	validatingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Validating"))
-	validatingWebhook.InjectScheme(scheme)
+	if err := validatingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Validating")); err != nil {
+		return nil, err
+	}
+	if err := validatingWebhook.InjectScheme(scheme); err != nil {
+		return nil, err
+	}
+
 	pathRecorder.Handle("/webhooks/validating", validatingWebhook)
 
 	requestInfoResolver := &apirequest.RequestInfoFactory{}
@@ -176,5 +187,5 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	handler = genericapifilters.WithCacheControl(handler)
 	handler = genericfilters.WithPanicRecovery(handler, requestInfoResolver)
 
-	return handler
+	return handler, nil
 }

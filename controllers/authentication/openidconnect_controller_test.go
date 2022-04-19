@@ -44,6 +44,11 @@ func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token
 	return &authenticator.Response{User: mock.returnUser}, mock.isAuthenticated, mock.err
 }
 
+func stopIDP(ctx context.Context, idp *mock.OIDCIdentityServer) {
+	err := idp.Stop(ctx)
+	Expect(err).NotTo(HaveOccurred())
+}
+
 var _ = Describe("OpenIDConnect controller", func() {
 	ctx := context.Background()
 
@@ -397,7 +402,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 		AfterEach(func() {
-			idp.Stop(ctx)
+			Expect(idp.Stop(ctx)).To(Succeed())
 		})
 
 		Describe("Construct a static JWKS key Set", func() {
@@ -427,7 +432,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					err = idp1.Start()
 					Expect(err).NotTo(HaveOccurred())
-					defer idp1.Stop(ctx)
+					defer stopIDP(ctx, idp1)
 
 					jwks, err := idp.PublicKeySetAsBytes()
 					Expect(err).NotTo(HaveOccurred())
@@ -518,7 +523,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 	Describe("Use a mocked identity provider offering specific TLS version", func() {
 		It("request should fail because offered TLS version is < 1.2", func() {
 			idp, err := mock.NewIdentityServer("test-idp", 1)
-			defer idp.Stop(ctx)
+			defer stopIDP(ctx, idp)
 			Expect(err).NotTo(HaveOccurred())
 			err = idp.StartWithMaxTLSVersion(tls.VersionTLS11)
 			Expect(err).NotTo(HaveOccurred())
@@ -537,7 +542,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		It("request should succeed because offered TLS version is >= 1.2", func() {
 			idp, err := mock.NewIdentityServer("test-idp", 1)
-			defer idp.Stop(ctx)
+			defer stopIDP(ctx, idp)
 			Expect(err).NotTo(HaveOccurred())
 			err = idp.StartWithMaxTLSVersion(tls.VersionTLS12)
 			Expect(err).NotTo(HaveOccurred())
