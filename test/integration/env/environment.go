@@ -86,7 +86,9 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 		Out: e.OIDCOut,
 		Err: e.OIDCErr,
 	}
-	e.oidcWebhookServer.configureDefaults(e.envRootDir)
+	if err := e.oidcWebhookServer.configureDefaults(e.envRootDir); err != nil {
+		return nil, err
+	}
 
 	// configure webhook authentication
 	authKubeconfigPath := filepath.Join(e.certDir, "auth-webhook.yaml")
