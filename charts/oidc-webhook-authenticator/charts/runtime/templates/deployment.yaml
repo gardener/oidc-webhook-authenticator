@@ -59,7 +59,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ include "oidc-webhook-authenticator.name" . }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: {{ include "image" .Values.image }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
         - --tls-cert-file=/var/run/oidc-webhook-authenticator/tls/tls.crt
