@@ -22,6 +22,7 @@ import (
 
 	mock "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -29,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -52,6 +54,35 @@ func stopIDP(ctx context.Context, idp *mock.OIDCIdentityServer) {
 var _ = Describe("OpenIDConnect controller", func() {
 	ctx := context.Background()
 
+	sign := func(claims map[string]interface{}) (string, error) {
+		privateKey := jose.JSONWebKey{}
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return "", err
+		}
+
+		privateKey = jose.JSONWebKey{Key: key, KeyID: "", Algorithm: string(jose.RS256), Use: "sig"}
+		thumb, err := privateKey.Thumbprint(crypto.SHA256)
+		if err != nil {
+			return "", err
+		}
+		kid := base64.URLEncoding.EncodeToString(thumb)
+		privateKey.KeyID = kid
+
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT"))
+
+		if err != nil {
+			return "", err
+		}
+
+		builder := jwt.Signed(signer)
+		token, err := builder.Claims(claims).CompactSerialize()
+		if err != nil {
+			return "", err
+		}
+		return token, nil
+	}
+
 	Describe("Authentication with Token Authentication handlers", func() {
 		var (
 			user1               = &user.DefaultInfo{Name: "fresh_ferret", Groups: []string{"first", "second"}, UID: "alpha"}
@@ -61,34 +92,6 @@ var _ = Describe("OpenIDConnect controller", func() {
 			forbiddenGroupsUser = &user.DefaultInfo{Name: "sneaky_gazelle", Groups: []string{"ninth", "system:admin"}, UID: "epsilon"}
 			unionHandler        *unionAuthTokenHandler
 			authUID             types.UID
-			sign                = func(claims map[string]interface{}) (string, error) {
-				privateKey := jose.JSONWebKey{}
-				key, err := rsa.GenerateKey(rand.Reader, 2048)
-				if err != nil {
-					return "", err
-				}
-
-				privateKey = jose.JSONWebKey{Key: key, KeyID: "", Algorithm: string(jose.RS256), Use: "sig"}
-				thumb, err := privateKey.Thumbprint(crypto.SHA256)
-				if err != nil {
-					return "", err
-				}
-				kid := base64.URLEncoding.EncodeToString(thumb)
-				privateKey.KeyID = kid
-
-				signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT"))
-
-				if err != nil {
-					return "", err
-				}
-
-				builder := jwt.Signed(signer)
-				token, err := builder.Claims(claims).CompactSerialize()
-				if err != nil {
-					return "", err
-				}
-				return token, nil
-			}
 		)
 		BeforeEach(func() {
 			unionHandler = &unionAuthTokenHandler{issuerHandlers: sync.Map{}, nameIssuerMapping: sync.Map{}, log: ctrl.Log.WithName("test")}
@@ -517,6 +520,109 @@ var _ = Describe("OpenIDConnect controller", func() {
 					}, time.Second*10, time.Second).Should(BeTrue())
 				})
 			})
+		})
+	})
+
+	DescribeTable("Check token expiration validity requirements (allowed)",
+		func(tokenValidForSeconds int64, maxTokenValiditySeconds *int64) {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"iat": now.Unix(),
+				"exp": now.Add(time.Second * time.Duration(tokenValidForSeconds)).Unix(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, maxTokenValiditySeconds)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(fulfilled).To(BeTrue())
+		},
+
+		Entry("token issued for the exact max validity seconds", int64(10), pointer.Int64(10)),
+		Entry("token issued for less than the max validity seconds", int64(10), pointer.Int64(50)),
+		Entry("no max validity seconds configured", int64(10), nil),
+	)
+
+	DescribeTable("Check token expiration validity requirements (denied)",
+		func(tokenValidForSeconds int64, maxTokenValiditySeconds *int64, expectedError string) {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"iat": now.Unix(),
+				"exp": now.Add(time.Second * time.Duration(tokenValidForSeconds)).Unix(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, maxTokenValiditySeconds)
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal(expectedError))
+		},
+
+		Entry("max validity seconds is negative", int64(10), pointer.Int64(-1), "max validity seconds of a token should not be negative"),
+		Entry("token exp is before iat", int64(-1), pointer.Int64(20), "iat is equal or greater than exp claim"),
+		Entry("token exp is the exact iat", int64(0), pointer.Int64(20), "iat is equal or greater than exp claim"),
+		Entry("token issued for greater validity than the allowed", int64(20), pointer.Int64(10), "token is issued with greater validity than the max allowed"),
+	)
+
+	Describe("Check token expiration validity requirements (special cases)", func() {
+		It("should fail because of missing iat claim", func() {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"exp": now.Add(time.Second * 10).Unix(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("cannot retrieve iat claim"))
+		})
+
+		It("should fail because of missing exp claim", func() {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"iat": now.Unix(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("cannot retrieve exp claim"))
+		})
+
+		It("should fail because of negative iat claim", func() {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"exp": now.Unix(),
+				"iat": -1,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("iat claim value should be positive"))
+		})
+
+		It("should fail because of negative exp claim", func() {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"exp": -1,
+				"iat": now.Unix(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("exp claim value should be positive"))
+		})
+
+		It("should fail because the passed argument is not a jwt", func() {
+			fulfilled, err := areExpirationRequirementsFulfilled("notajwt", pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("cannot parse jwt token"))
 		})
 	})
 

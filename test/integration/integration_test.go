@@ -11,10 +11,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -26,6 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
@@ -549,23 +552,40 @@ var _ = Describe("Integration", func() {
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", apiserverToken))
 
 				reviewResponse := &authenticationv1.TokenReview{}
-				Eventually(func() bool {
-					res, err := client.Do(req)
-					Expect(err).NotTo(HaveOccurred())
+				if expectToAuthenticate {
+					Eventually(func() bool {
+						res, err := client.Do(req)
+						Expect(err).NotTo(HaveOccurred())
 
-					responseBytes, err := ioutil.ReadAll(res.Body)
-					Expect(err).NotTo(HaveOccurred())
+						responseBytes, err := ioutil.ReadAll(res.Body)
+						Expect(err).NotTo(HaveOccurred())
 
-					err = json.Unmarshal(responseBytes, reviewResponse)
-					Expect(err).NotTo(HaveOccurred())
+						err = json.Unmarshal(responseBytes, reviewResponse)
+						Expect(err).NotTo(HaveOccurred())
 
-					if expectToAuthenticate {
 						return reviewResponse.Status.Authenticated
-					}
+					}, timeout, interval).Should(BeTrue())
+				} else {
+					// we want to request the endpoint multiple times and always get not authenticated
+					// TODO: this can be fixed after https://github.com/gardener/oidc-webhook-authenticator/issues/79 is implemented
+					// after the enhancement is implemented the observedGeneration field can be used to sync the reconciliation
+					// and the retries will not be needed
+					for i := 0; i < 10; i++ {
+						res, err := client.Do(req)
+						Expect(err).NotTo(HaveOccurred())
 
-					// do not retry the request
-					return true
-				}, timeout, interval).Should(BeTrue())
+						responseBytes, err := ioutil.ReadAll(res.Body)
+						Expect(err).NotTo(HaveOccurred())
+
+						err = json.Unmarshal(responseBytes, reviewResponse)
+						Expect(err).NotTo(HaveOccurred())
+
+						Expect(reviewResponse.Status.Authenticated).To(BeFalse())
+						// wait one second to query again
+						time.Sleep(time.Second)
+					}
+				}
+
 				return reviewResponse
 			}
 		)
@@ -1415,6 +1435,179 @@ var _ = Describe("Integration", func() {
 
 			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
 
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because nbf claim represents a time in the future", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["nbf"] = time.Now().Add(time.Minute * 2).Unix()
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because max token validity is exceeded", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.MaxTokenExpirationSeconds = pointer.Int64(60)
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because max token validity is enforced but iat claim is missing", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.MaxTokenExpirationSeconds = pointer.Int64(60 * 20)
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			delete(claims, "iat")
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should authenticate user because max token validity is not exceeded", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.MaxTokenExpirationSeconds = pointer.Int64(60 * 20)
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because token was modified after signing", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			split := strings.Split(token, ".")
+			decodedBytes, err := base64.RawURLEncoding.DecodeString(split[1])
+			Expect(err).NotTo(HaveOccurred())
+			newClaims := map[string]interface{}{}
+			Expect(json.Unmarshal(decodedBytes, &newClaims)).To(Succeed())
+
+			newClaims["exp"] = time.Now().Add(time.Minute * 30).Unix()
+			modifiedPayload, err := json.Marshal(&newClaims)
+			Expect(err).NotTo(HaveOccurred())
+			modifiedToken := fmt.Sprintf("%s.%s.%s", split[0], base64.RawURLEncoding.EncodeToString(modifiedPayload), split[2])
+			Expect(token).NotTo(Equal(modifiedToken))
+
+			review := makeTokenReviewRequest(apiserverToken, modifiedToken, testEnv.OIDCServerCA(), false)
+			Expect(review.Status.Authenticated).To(BeFalse())
+			Expect(review.Status.User.Username).To(BeEmpty())
+			Expect(review.Status.User.Groups).To(BeEmpty())
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should not authenticate user because token was modified after signing (offline)", func() {
+			idp := createAndStartIDPServer(1)
+			keys, err := idp.PublicKeySetAsBytes()
+			Expect(err).NotTo(HaveOccurred())
+			stopIDP(ctx, idp)
+
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+			provider.Spec.JWKS.Keys = keys
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			split := strings.Split(token, ".")
+			decodedBytes, err := base64.RawURLEncoding.DecodeString(split[1])
+			Expect(err).NotTo(HaveOccurred())
+			newClaims := map[string]interface{}{}
+			Expect(json.Unmarshal(decodedBytes, &newClaims)).To(Succeed())
+
+			newClaims["exp"] = time.Now().Add(time.Minute * 30).Unix()
+			modifiedPayload, err := json.Marshal(&newClaims)
+			Expect(err).NotTo(HaveOccurred())
+			modifiedToken := fmt.Sprintf("%s.%s.%s", split[0], base64.RawURLEncoding.EncodeToString(modifiedPayload), split[2])
+			Expect(token).NotTo(Equal(modifiedToken))
+
+			review := makeTokenReviewRequest(apiserverToken, modifiedToken, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())

@@ -124,6 +124,13 @@ type OIDCAuthenticationSpec struct {
 
 	// JWKS if specified, provides an option to specify JWKS keys offline.
 	JWKS JWKSSpec `json:"jwks,omitempty"`
+
+	// +optional
+
+	// MaxTokenExpirationSeconds if specified, sets a limit in seconds to the maximum validity duration of a token.
+	// Tokens issued with validity greater that this value will not be verified.
+	// Setting this will require that the tokens have the "iat" and "exp" claims.
+	MaxTokenExpirationSeconds *int64 `json:"maxTokenExpirationSeconds,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=RS256;RS384;RS512;ES256;ES384;ES512;PS256;PS384;PS512

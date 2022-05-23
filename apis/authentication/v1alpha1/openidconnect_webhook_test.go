@@ -268,5 +268,19 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Entry("disabled prefixing", "-"),
 			Entry("empty prefix", ""),
 		)
+
+		It("should return error for negative maxTokenExpirationSeconds", func() {
+			oidc.Spec.MaxTokenExpirationSeconds = pointer.Int64(-1)
+			err := oidc.ValidateCreate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: -1: should be positive"))
+		})
+
+		It("should return error for zero maxTokenExpirationSeconds", func() {
+			oidc.Spec.MaxTokenExpirationSeconds = pointer.Int64(0)
+			err := oidc.ValidateCreate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: 0: should be positive"))
+		})
 	})
 })

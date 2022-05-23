@@ -123,6 +123,10 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("groupsPrefix"), r.Spec.GroupsPrefix, fmt.Sprintf("must not start with %s", SystemPrefix)))
 	}
 
+	if r.Spec.MaxTokenExpirationSeconds != nil && *r.Spec.MaxTokenExpirationSeconds <= 0 {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("maxTokenExpirationSeconds"), *r.Spec.MaxTokenExpirationSeconds, "should be positive"))
+	}
+
 	return allErrs
 }
 

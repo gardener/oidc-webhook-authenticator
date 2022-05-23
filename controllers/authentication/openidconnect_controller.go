@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -23,7 +22,6 @@ import (
 	"github.com/go-logr/logr"
 	"golang.org/x/time/rate"
 	jose "gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -164,9 +162,10 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	r.registerHandler(config.Spec.IssuerURL, req.Name, &authenticatorInfo{
-		Token: auth,
-		name:  req.Name,
-		uid:   config.UID,
+		Token:                   auth,
+		name:                    req.Name,
+		uid:                     config.UID,
+		maxTokenValiditySeconds: config.Spec.MaxTokenExpirationSeconds,
 	})
 
 	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil
@@ -198,25 +197,6 @@ type unionAuthTokenHandler struct {
 	log               logr.Logger
 }
 
-func (u *unionAuthTokenHandler) getIssuerURL(ctx context.Context, token string) (string, error) {
-	var claims map[string]interface{}
-	tok, err := jwt.ParseSigned(token)
-	if err != nil {
-		return "", errors.New("cannot parse jwt token")
-	}
-
-	err = tok.UnsafeClaimsWithoutVerification(&claims)
-	if err != nil {
-		return "", errors.New("cannot parse claims")
-	}
-
-	iss, ok := claims["iss"].(string)
-	if !ok {
-		return "", errors.New("cannot retrieve issuer URL")
-	}
-	return iss, nil
-}
-
 // AuthenticateToken authenticates the token using a chain of authenticator.Token objects.
 func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
 	var (
@@ -224,7 +204,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 		success bool
 	)
 
-	iss, err := u.getIssuerURL(ctx, token)
+	iss, err := getIssuerURL(token)
 	if err != nil {
 		return nil, false, err
 	}
@@ -245,6 +225,13 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 			u.log.Info("cannot convert to authenticatorInfo", "key", key, "value", value)
 
 			return false
+		}
+
+		fulfilled, err := areExpirationRequirementsFulfilled(token, currAuthRequestHandler.maxTokenValiditySeconds)
+		if err != nil || !fulfilled {
+			// keep iterating over the handlers
+			// since the requirements can be met for a different handler
+			return true
 		}
 
 		resp, authenticated, err := currAuthRequestHandler.AuthenticateToken(ctx, token)
@@ -329,8 +316,9 @@ func (u *unionAuthTokenHandler) deleteHandler(handlerKey string) {
 
 type authenticatorInfo struct {
 	authenticator.Token
-	name string
-	uid  types.UID
+	name                    string
+	uid                     types.UID
+	maxTokenValiditySeconds *int64
 }
 
 type providerJSON struct {
