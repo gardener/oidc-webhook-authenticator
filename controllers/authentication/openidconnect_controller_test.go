@@ -590,6 +590,34 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Expect(err.Error()).To(Equal("cannot retrieve exp claim"))
 		})
 
+		It("should fail because of negative iat claim", func() {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"exp": now.Unix(),
+				"iat": -1,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("iat claim value should be positive"))
+		})
+
+		It("should fail because of negative exp claim", func() {
+			now := time.Now()
+			token, err := sign(map[string]interface{}{
+				"iss": "https://issuer1",
+				"exp": -1,
+				"iat": now.Unix(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			Expect(err).To(HaveOccurred())
+			Expect(fulfilled).To(BeFalse())
+			Expect(err.Error()).To(Equal("exp claim value should be positive"))
+		})
+
 		It("should fail because the passed argument is not a jwt", func() {
 			fulfilled, err := areExpirationRequirementsFulfilled("notajwt", pointer.Int64(10))
 			Expect(err).To(HaveOccurred())

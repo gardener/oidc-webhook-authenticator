@@ -55,9 +55,17 @@ func areExpirationRequirementsFulfilled(token string, maxValiditySeconds *int64)
 		return false, errors.New("cannot retrieve iat claim")
 	}
 
+	if iat <= 0 {
+		return false, errors.New("iat claim value should be positive")
+	}
+
 	exp, ok := claims["exp"].(float64)
 	if !ok {
 		return false, errors.New("cannot retrieve exp claim")
+	}
+
+	if exp <= 0 {
+		return false, errors.New("exp claim value should be positive")
 	}
 
 	if iat >= exp {
