@@ -114,6 +114,13 @@ spec:
                     format: byte
                     type: string
                 type: object
+              maxTokenExpirationSeconds:
+                description: MaxTokenExpirationSeconds if specified, sets a limit
+                  in seconds to the maximum validity duration of a token. Tokens issued
+                  with validity greater that this value will not be verified. Setting
+                  this will require that the tokens have the "iat" and "exp" claims.
+                format: int64
+                type: integer
               requiredClaims:
                 additionalProperties:
                   type: string
