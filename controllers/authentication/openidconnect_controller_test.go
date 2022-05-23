@@ -558,8 +558,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 		},
 
 		Entry("max validity seconds is negative", int64(10), pointer.Int64(-1), "max validity seconds of a token should not be negative"),
-		Entry("token exp is before iat", int64(-1), pointer.Int64(20), "iat is equal or greater to exp claim value"),
-		Entry("token exp is the exact iat", int64(0), pointer.Int64(20), "iat is equal or greater to exp claim value"),
+		Entry("token exp is before iat", int64(-1), pointer.Int64(20), "iat is equal or greater than exp claim"),
+		Entry("token exp is the exact iat", int64(0), pointer.Int64(20), "iat is equal or greater than exp claim"),
 		Entry("token issued for greater validity than the allowed", int64(20), pointer.Int64(10), "token is issued with greater validity than the max allowed"),
 	)
 

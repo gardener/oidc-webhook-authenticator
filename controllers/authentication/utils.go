@@ -69,7 +69,7 @@ func areExpirationRequirementsFulfilled(token string, maxValiditySeconds *int64)
 	}
 
 	if iat >= exp {
-		return false, errors.New("iat is equal or greater to exp claim value")
+		return false, errors.New("iat is equal or greater than exp claim")
 	}
 
 	tokenIssuedFor := exp - iat
