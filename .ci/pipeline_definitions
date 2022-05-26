@@ -19,9 +19,9 @@ oidc-webhook-authenticator:
             tag_as_latest: false
     steps:
       check:
-        image: 'golang:1.17.9'
+        image: 'golang:1.18.2'
       test:
-        image: 'golang:1.17.9'
+        image: 'golang:1.18.2'
   jobs:
     head-update:
       traits:

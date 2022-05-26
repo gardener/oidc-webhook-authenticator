@@ -462,7 +462,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Context("request to IDP server without valid CA certificate", func() {
 				It("request should fail", func() {
 					keySet, err := remoteKeySet(ctx, fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
-					Expect(err.Error()).To(ContainSubstring("x509: certificate signed by unknown authority"))
+					Expect(err.Error()).To(ContainSubstring("certificate is not trusted"))
 					Expect(keySet).To(BeNil())
 				})
 			})
