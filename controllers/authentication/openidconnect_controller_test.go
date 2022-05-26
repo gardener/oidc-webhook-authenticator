@@ -462,7 +462,18 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Context("request to IDP server without valid CA certificate", func() {
 				It("request should fail", func() {
 					keySet, err := remoteKeySet(ctx, fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
-					Expect(err.Error()).To(ContainSubstring("certificate is not trusted"))
+					containsAnyOf := func(s string, anyOf []string) bool {
+						for _, v := range anyOf {
+							if strings.Contains(s, v) {
+								return true
+							}
+						}
+						return false
+					}
+
+					// Different errors are returned depending on the OS
+					expectedAnyOf := []string{"certificate is not trusted", "certificate signed by unknown authority"}
+					Expect(containsAnyOf(err.Error(), expectedAnyOf)).To(BeTrue())
 					Expect(keySet).To(BeNil())
 				})
 			})
