@@ -471,7 +471,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 						return false
 					}
 
-					// Different errors are returned depending on the OS
+					// Different errors are returned depending on the OS since go 1.18
+					// See a similar issue here https://github.com/golang/go/issues/51991
 					expectedAnyOf := []string{"certificate is not trusted", "certificate signed by unknown authority"}
 					Expect(containsAnyOf(err.Error(), expectedAnyOf)).To(BeTrue())
 					Expect(keySet).To(BeNil())
