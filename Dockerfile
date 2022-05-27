@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Build the manager binary
-FROM golang:1.17.9 AS builder
+FROM golang:1.18.2 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests

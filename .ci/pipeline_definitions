@@ -17,11 +17,6 @@ oidc-webhook-authenticator:
             dockerfile: Dockerfile
             tag_template: ${EFFECTIVE_VERSION}
             tag_as_latest: false
-    steps:
-      check:
-        image: 'golang:1.17.9'
-      test:
-        image: 'golang:1.17.9'
   jobs:
     head-update:
       traits:
