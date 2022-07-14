@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Build the manager binary
-FROM golang:1.18.3 AS builder
+FROM golang:1.18.4 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -22,11 +22,9 @@ COPY webhook/ webhook/
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
 
-FROM alpine:3.15.4
-RUN apk --no-cache add ca-certificates
+FROM gcr.io/distroless/static-debian11:nonroot
 WORKDIR /
 COPY --from=builder /workspace/oidc-webhook-authenticator .
-USER 65532:65532
 EXPOSE 10443/tcp
 
 LABEL org.opencontainers.image.authors="Gardener contributors"
