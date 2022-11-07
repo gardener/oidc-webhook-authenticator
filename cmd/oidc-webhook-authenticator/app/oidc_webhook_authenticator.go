@@ -136,7 +136,7 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		return err
 	}
 
-	if _, err := opts.SecureServing.Serve(handler, 0, ctx.Done()); err != nil {
+	if _, _, err := opts.SecureServing.Serve(handler, 0, ctx.Done()); err != nil {
 		setupLog.Error(err, "problem starting secure server")
 		return err
 	}
