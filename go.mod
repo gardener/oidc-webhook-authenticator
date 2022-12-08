@@ -12,11 +12,11 @@ require (
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.25.3
-	k8s.io/apimachinery v0.25.3
-	k8s.io/apiserver v0.25.3
-	k8s.io/client-go v0.25.3
-	k8s.io/component-base v0.25.3
+	k8s.io/api v0.25.4
+	k8s.io/apimachinery v0.25.4
+	k8s.io/apiserver v0.25.4
+	k8s.io/client-go v0.25.4
+	k8s.io/component-base v0.25.4
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	sigs.k8s.io/controller-runtime v0.13.1
 )
