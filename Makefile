@@ -7,6 +7,7 @@
 IMG ?= oidc-webhook-authenticator:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=false,preserveUnknownFields=false"
+GOARCH      ?= $(shell go env GOARCH)
 
 # Get the currently used
 # install path (in GOPATH/bin, unless GOBIN is set)
@@ -56,13 +57,13 @@ start-dev-container: tools-image ## Run go vet against code.
 	docker run --rm --name=odic-dev-container -v $(shell pwd):/workspace --workdir /workspace /bin/bash
 
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/oidc-webhook-authenticator ./cmd/oidc-webhook-authenticator/authenticator.go
+	GOARCH=$(GOARCH) go build -o bin/oidc-webhook-authenticator ./cmd/oidc-webhook-authenticator/authenticator.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/oidc-webhook-authenticator/authenticator.go
 
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	docker build --build-arg TARGETARCH=$(GOARCH) -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}

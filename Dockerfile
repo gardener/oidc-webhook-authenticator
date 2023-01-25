@@ -5,6 +5,7 @@
 # Build the manager binary
 FROM golang:1.19.5 AS builder
 
+ARG TARGETARCH
 WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -20,7 +21,7 @@ COPY cmd/ cmd/
 COPY webhook/ webhook/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
 
 FROM gcr.io/distroless/static-debian11:nonroot
 WORKDIR /
