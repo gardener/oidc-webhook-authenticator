@@ -306,4 +306,4 @@ Create an `OpenIDConnect` resource configured with your identity provider's sett
 curl -k -H "Authorization: Bearer $MY_TOKEN" $(k config view -o=jsonpath="{.clusters[?(@.name=='minikube')].cluster.server}")
 ```
 
-Alternatively you can also the [kubelogin](https://github.com/int128/kubelogin) plugin and configure an OIDC kubeconfig.
+Alternatively you can also use a token kubeconfig or the [kubelogin](https://github.com/int128/kubelogin) plugin and configure an OIDC kubeconfig.
