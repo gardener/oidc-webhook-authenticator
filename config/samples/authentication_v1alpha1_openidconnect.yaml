@@ -1,12 +1,47 @@
 apiVersion: authentication.gardener.cloud/v1alpha1
 kind: OpenIDConnect
 metadata:
-  name: dex
+  name: abc
 spec:
-  issuerURL: https://control-plane.minikube.internal:31133
-  clientID: oidc-webhook
-  usernameClaim: email
+  # issuerURL is the URL the provider signs ID Tokens as.
+  # This will be the "iss" field of all tokens produced by the provider and is used for configuration discovery.
+  issuerURL: https://abc-oidc-provider.example
+
+  # clientID is the audience for which the JWT must be issued for, the "aud" field.
+  clientID: my-idp-provider
+
+  # usernameClaim is the JWT field to use as the user's username.
+  usernameClaim: sub
+
+  # usernamePrefix, if specified, causes claims mapping to username to be prefix with the provided value.
+  # A value "oidc:" would result in usernames like "oidc:john".
+  # If not provided, the prefix defaults to "( .metadata.name )/". The value "-" can be used to disable all prefixing.
+  usernamePrefix: "abc:"
+
+  # groupsClaim, if specified, causes the OIDCAuthenticator to try to populate the user's groups with an ID Token field.
+  # If the groupsClaim field is present in an ID Token the value must be a string or list of strings.
   # groupsClaim: groups
-  # usernamePrefix: "test-"
-  # usernamePrefix: "-"
-  caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM1ekNDQWMrZ0F3SUJBZ0lCQVRBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwdGFXNXAKYTNWaVpVTkJNQjRYRFRFNU1EUXdNakl5TURnMU0xb1hEVEk1TURNek1USXlNRGcxTTFvd0ZURVRNQkVHQTFVRQpBeE1LYldsdWFXdDFZbVZEUVRDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBTC8yCk95eWxEak9xNmtOWVdJWXlTTDJPQmxqS3p4eVk3UTV5SlZyMS9qTml4dVAwcU91cSsyOFBYVmVudjBaZERFdTUKMjRUY09WTEc0N3g1QTFpMmdRM0xJT3c3eVV2aWkyN1ZHOVpvVUZLRDFiQlFNSkxZWVpzWVl6VERMOE9ETHVGbgowL0hMSHNWMlNqbk1ycEpQU0FlZktIR01XL3JxYXdFbWs3QXNmODNiTCtiZm0rMm13dXZJNkxiaGgzckVIR2tQCnhWbStEb01udVlER0dzbkhIcEtnSVBWQlFrbVVOcDNxN2ZNSHZuRHUvUnlkUjY5bGpvb3RXbEx2WU1qTUl2dlkKbjY4QTJxRkRXNklIVHNRMm9OQmgzdTRWZWtKWW9lRVJ1bmdpZ3pQbnlOZENQRjNGY21obkNock1jdHJlMk5jYQp5M3F0eWpSYnp3QmFHTitEMlk4Q0F3RUFBYU5DTUVBd0RnWURWUjBQQVFIL0JBUURBZ0trTUIwR0ExVWRKUVFXCk1CUUdDQ3NHQVFVRkJ3TUNCZ2dyQmdFRkJRY0RBVEFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQTBHQ1NxR1NJYjMKRFFFQkN3VUFBNElCQVFBbFJiQy9idGwvY1d6L3VvL3NtZTJFMFhhazRRbXlwbS8wUEdsTVg1bnJIV0s0eFFOVwpzQTRCY1ZlbEJacmtBdmlCNHlNVE5vSW9IYnRJK284QnRRdGNzMkZCNVRqMWNMNzhlQmRPWnpJbGdqV3p2c09LCkJ3Q3l1OUpXVHIzRVVMbURiU1M1Tmc3WWlMTGZJeVZBamZQSHAxVVBlK3ZZMjBsenMrall3NkhlZDNBdHhFMU8KNGVmNTVkbEhvNXpGS2RmMEU5ZHVJSnJvQ2RZQkNjUE1nWU5PRGZIQWc4SXdxS2Rpekd4N0FLVkhnakIwNHd5Sgo3dHgwNm0rZ2VTbDVPNzRqcjM1Q1ZwS2VQL3MrMFZZeUUvTThQdWUya1paSmtZclVvRHllTUc4TUlhc29TblZrCkhiTmczWUsycTZ4MmhRTmZDU1ZPa3RJQm5FY0JyTWNkdVdZUAotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+
+  # groupsPrefix, if specified, causes claims mapping to group names to be prefixed with the value.
+  # A value "oidc:" would result in groups like "oidc:engineering" and "oidc:marketing".
+  # If not provided, the prefix defaults to "( .metadata.name )/".
+  # The value "-" can be used to disable all prefixing.
+  # groupsPrefix: "abc:"
+
+  # caBundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate. If unspecified, system's trusted certificates are used.
+  # caBundle: <base64 encoded bundle>
+
+  # supportedSigningAlgs sets the accepted set of JOSE signing algorithms that can be used by the provider to sign tokens.
+  # The default value is RS256.
+  # supportedSigningAlgs:
+  # - RS256
+
+  # maxTokenExpirationSeconds if specified, sets a limit in seconds to the maximum validity duration of a token.
+  # Tokens issued with validity greater that this value will not be verified.
+  # Setting this will require that the tokens have the "iat" and "exp" claims.
+  # maxTokenExpirationSeconds: 3600
+
+  # jwks if specified, provides an option to specify JWKS keys offline.
+  # jwks:
+  #   keys is a base64 encoded JSON webkey Set. If specified, the OIDCAuthenticator skips the request to the issuer's jwks_uri endpoint to retrieve the keys.
+  #   keys: <base64 encoded jwks>
