@@ -260,10 +260,9 @@ docker pull eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator:lates
 
 ## Local development
 
-For this setup several components are needed:
+For this setup the following components are needed:
 
 - [minikube](https://minikube.sigs.k8s.io/docs/start/)
-- [kubelogin](https://github.com/int128/kubelogin)
 
 The API server is started with `--authentication-token-webhook-config-file` with `kubeconfig` file pointing to the Webhook.
 
@@ -272,16 +271,15 @@ mkdir -p ~/.minikube/files/var/lib/minikube/certs
 cp config/samples/minikube-webhook-kubeconfig.yaml ~/.minikube/files/var/lib/minikube/certs/minikube-webhook-kubeconfig.yaml
 
 minikube start \
-  --extra-config=apiserver.service-account-api-audiences=api \
   --extra-config=apiserver.authentication-token-webhook-config-file=/var/lib/minikube/certs/minikube-webhook-kubeconfig.yaml \
   --extra-config=apiserver.authentication-token-webhook-cache-ttl=10s
 ```
 
-To allow easy authentication via [kubelogin](https://github.com/int128/kubelogin) the minikube IP is added as `control-plane.minikube.internal` in `/etc/hosts`
+To allow easy communication between the `kube-apiserver` and the `oidc-webhook-authenticator` minikube IP is added as `control-plane.minikube.internal` in `/etc/hosts`
 
 ```shell
 sudo sed -ie '/control-plane.minikube.internal/d' /etc/hosts
-sudo echo "$(minikube ip) control-plane.minikube.internal" >> /etc/hosts
+echo "$(minikube ip) control-plane.minikube.internal" | sudo tee -a /etc/hosts
 ```
 
 Add the CRD:
@@ -293,55 +291,19 @@ kubectl apply -f config/crd/bases/authentication.gardener.cloud_openidconnects.y
 Build the image, so it's accessible by `minikube`:
 
 ```shell
-eval $(minikube docker-env)
-make docker-build
+minikube image build -t oidc-webhook-authenticator .
 ```
 
-Deploy Dex and the oidc webhook authenticator:
+Deploy the oidc webhook authenticator.
 
 ```shell
 kubectl apply -f config/samples/deployment.yaml
 ```
 
-Add an additional user with Dex authentication to the kubeconfig and use it as current context
+Create an `OpenIDConnect` resource configured with your identity provider's settings (see an example [here](./config/samples/authentication_v1alpha1_openidconnect.yaml)). Get a token from your identity provider. You can now authenticate against the minikube cluster.
 
-```shell
-kubectl config set-credentials minikube-dex \
---exec-command=kubectl \
---exec-arg=oidc-login \
---exec-arg=get-token \
---exec-arg=--certificate-authority=$(readlink -f cfssl/ca.crt) \
---exec-arg=--oidc-issuer-url=https://control-plane.minikube.internal:31133 \
---exec-arg=--oidc-client-id=oidc-webhook \
---exec-arg=--oidc-client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
---exec-arg=--oidc-extra-scope=email \
---exec-arg=--oidc-extra-scope=profile \
---exec-arg=--oidc-extra-scope=groups \
---exec-arg=--grant-type=auto \
---exec-api-version=client.authentication.k8s.io/v1beta1
-
-kubectl config set-context minikube-dex --user=minikube-dex --cluster=minikube
-kubectl config use-context minikube-dex
+```bash
+curl -k -H "Authorization: Bearer $MY_TOKEN" $(k config view -o=jsonpath="{.clusters[?(@.name=='minikube')].cluster.server}")
 ```
 
-Try to authenticate - when a browser pops up, use `admin@example.com` / `password` as email and password:
-
-```shell
-kubectl get pods
-error: You must be logged in to the server (Unauthorized)
-```
-
-The authentication to the apiserver fails. Now apply the `OpenIDConneect` resource:
-
-```shell
-kubectl --context=minikube apply -f config/samples/authentication_v1alpha1_openidconnect.yaml
-```
-
-Wait a bit (the kube-apiserver caches the authentication response for `10s`) and try to execute `kubectl` commands again:
-
-```shell
-kubectl get pods
-Error from server (Forbidden): pods is forbidden: User "dex/admin@example.com" cannot list resource "pods" in API group "" in the namespace "default"
-```
-
-You have successfully authenticated (you can add some RBAC rules to allow that user to perform some operations).
+Alternatively you can also use a token kubeconfig or the [kubelogin](https://github.com/int128/kubelogin) plugin and configure an OIDC kubeconfig.
