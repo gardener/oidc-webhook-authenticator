@@ -12,9 +12,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if .Values.additionalLabels.deployment }}
-{{- range .Values.additionalLabels.deployment }}
-{{ toYaml . | trim | indent 4 }}
-{{- end }}
+{{ toYaml .Values.additionalLabels.deployment | trim | indent 4 }}
 {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}

@@ -60,5 +60,5 @@ serviceAccountTokenVolumeProjection:
 apiAudiences: []
 
 additionalLabels:
-  hpa: []
-  deployment: []
+  hpa: {}
+  deployment: {}

@@ -12,9 +12,7 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
 {{- if .Values.additionalLabels.hpa }}
-{{- range .Values.additionalLabels.hpa }}
-{{ toYaml . | trim | indent 4 }}
-{{- end }}
+{{ toYaml .Values.additionalLabels.hpa | trim | indent 4 }}
 {{- end }}
 spec:
   scaleTargetRef:
@@ -39,9 +37,7 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
 {{- if .Values.additionalLabels.hpa }}
-{{- range .Values.additionalLabels.hpa }}
-{{ toYaml . | trim | indent 4 }}
-{{- end }}
+{{ toYaml .Values.additionalLabels.hpa | trim | indent 4 }}
 {{- end }}
 spec:
   scaleTargetRef:

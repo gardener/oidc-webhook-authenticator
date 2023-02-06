@@ -85,5 +85,5 @@ runtime:
   apiAudiences: []
 
   additionalLabels:
-    deployment: []
-    hpa: []
+    deployment: {}
+    hpa: {}
