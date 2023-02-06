@@ -11,6 +11,11 @@ metadata:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if .Values.additionalLabels.deployment }}
+{{- range .Values.additionalLabels.deployment }}
+{{ toYaml . | trim | indent 4 }}
+{{- end }}
+{{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 5
