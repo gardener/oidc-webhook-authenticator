@@ -39,6 +39,9 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- if .Values.additionalLabels.deployment }}
+        {{- toYaml .Values.additionalLabels.deployment | trim | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "oidc-webhook-authenticator.name" . }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
