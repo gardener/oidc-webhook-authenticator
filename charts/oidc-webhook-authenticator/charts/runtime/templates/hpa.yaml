@@ -28,7 +28,7 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.autoscaling.hpa.cpuTargetAverageUtilization }}
-{{- else -}}
+{{- else }}
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
