@@ -41,6 +41,7 @@ auth:
   - /healthz
   - /webhooks/validating
 
+resyncPeriod: 10m
 resources:
   requests:
     cpu: 100m

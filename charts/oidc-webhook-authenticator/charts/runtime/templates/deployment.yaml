@@ -84,6 +84,7 @@ spec:
         - --api-audiences={{ .Values.apiAudiences | join "," }}
         {{- end }}
         - --authorization-always-allow-paths={{ .Values.auth.authorizationAlwaysAllowPaths | join "," }}
+        - --resync-period={{ .Values.resyncPeriod }}
         livenessProbe:
           failureThreshold: 3
           httpGet:
