@@ -38,8 +38,9 @@ auth:
   kubeconfig:
   # A list of HTTP paths to skip during authorization.
   authorizationAlwaysAllowPaths:
-  - /healthz
   - /webhooks/validating
+
+diagnosticPort: 8080
 
 resources:
   requests:

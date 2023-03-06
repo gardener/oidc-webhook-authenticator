@@ -130,6 +130,20 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		Log:           ctrl.Log.WithName("webhooks").WithName("TokenReview"),
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+
+	diagnosticMux := http.NewServeMux()
+	healthz.InstallHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
+	diagnosticMux.Handle("/metrics", promhttp.Handler())
+	go func() {
+		setupLog.Info("Starting diagnostic server", "address", opts.DiagnosticAddr.Addr)
+		err := http.ListenAndServe(opts.DiagnosticAddr.Addr, diagnosticMux)
+		if err != nil {
+			cancel() // Canceling the context closes the associated channel, when the channel is closed, the secure server below also shuts down.
+			setupLog.Error(err, "diagnostic server exited with error")
+		}
+	}()
+
 	handler, err := newHandler(opts, authWH, mgr.GetScheme())
 	if err != nil {
 		setupLog.Error(err, "problem initializing handler")
@@ -151,10 +165,6 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 
 func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
 	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
-
-	healthz.InstallHandler(pathRecorder)
-	pathRecorder.Handle("/metrics", promhttp.Handler())
-
 	pathRecorder.Handle("/validate-token", authWH.Build())
 
 	oidc := &authenticationv1alpha1.OpenIDConnect{}
