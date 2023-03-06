@@ -135,6 +135,8 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 
 	diagnosticMux := http.NewServeMux()
 	healthz.InstallHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
+	healthz.InstallReadyzHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
+	healthz.InstallLivezHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
 	diagnosticMux.Handle("/metrics", promhttp.Handler())
 	go func() {
 		setupLog.Info("Starting diagnostic server", "address", opts.DiagnosticAddr.Addr)
