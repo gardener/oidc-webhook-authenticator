@@ -12,6 +12,7 @@ import (
 
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
+	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -164,8 +165,13 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 }
 
 func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
-	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
-	pathRecorder.Handle("/validate-token", authWH.Build())
+	var (
+		authPath     = "/validate-token"
+		authHandler  = authWH.Build()
+		pathRecorder = mux.NewPathRecorderMux("oidc-webhook-authenticator")
+	)
+	authHandler = metrics.InstrumentedHandler(authPath, authHandler)
+	pathRecorder.Handle(authPath, authHandler)
 
 	oidc := &authenticationv1alpha1.OpenIDConnect{}
 
@@ -176,7 +182,12 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	if err := defaultingWebhook.InjectScheme(scheme); err != nil {
 		return nil, err
 	}
-	pathRecorder.Handle("/webhooks/mutating", defaultingWebhook)
+
+	var (
+		defaultingPath    = "/webhooks/mutating"
+		defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingWebhook)
+	)
+	pathRecorder.Handle(defaultingPath, defaultingHandler)
 
 	validatingWebhook := admission.ValidatingWebhookFor(oidc)
 	if err := validatingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Validating")); err != nil {
@@ -186,7 +197,11 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return nil, err
 	}
 
-	pathRecorder.Handle("/webhooks/validating", validatingWebhook)
+	var (
+		validatingPath    = "/webhooks/validating"
+		validatingHandler = metrics.InstrumentedHandler(validatingPath, validatingWebhook)
+	)
+	pathRecorder.Handle(validatingPath, validatingHandler)
 
 	requestInfoResolver := &apirequest.RequestInfoFactory{}
 	failedHandler := genericapifilters.Unauthorized(clientgoscheme.Codecs)
@@ -196,6 +211,9 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
 	handler = genericapifilters.WithCacheControl(handler)
 	handler = genericfilters.WithPanicRecovery(handler, requestInfoResolver)
+
+	// Instrument the outermost handler to detect issues inside the handler chain.
+	handler = metrics.InstrumentedHandler("GLOBAL", handler)
 
 	return handler, nil
 }
