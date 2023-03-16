@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -152,7 +151,7 @@ var _ = AfterSuite(func() {
 
 		dumpFn := func(filename string, bytes []byte, perm fs.FileMode) {
 			if len(bytes) > 0 {
-				ioutil.WriteFile(filename, bytes, perm)
+				os.WriteFile(filename, bytes, perm)
 			}
 		}
 

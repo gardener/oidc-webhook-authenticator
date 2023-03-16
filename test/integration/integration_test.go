@@ -14,7 +14,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -554,7 +554,7 @@ var _ = Describe("Integration", func() {
 				res, err := client.Do(req)
 				Expect(err).NotTo(HaveOccurred())
 
-				responseBytes, err := ioutil.ReadAll(res.Body)
+				responseBytes, err := io.ReadAll(res.Body)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(responseBytes)).To(ContainSubstring(expectedErrMsgPart))
 
@@ -586,7 +586,7 @@ var _ = Describe("Integration", func() {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
 
-						responseBytes, err := ioutil.ReadAll(res.Body)
+						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
 
 						err = json.Unmarshal(responseBytes, reviewResponse)
@@ -603,7 +603,7 @@ var _ = Describe("Integration", func() {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
 
-						responseBytes, err := ioutil.ReadAll(res.Body)
+						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
 
 						err = json.Unmarshal(responseBytes, reviewResponse)
