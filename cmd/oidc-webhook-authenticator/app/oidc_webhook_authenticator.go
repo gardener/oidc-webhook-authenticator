@@ -15,9 +15,9 @@ import (
 	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/go-logr/logr"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -131,22 +131,6 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		Log:           ctrl.Log.WithName("webhooks").WithName("TokenReview"),
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-
-	diagnosticMux := http.NewServeMux()
-	healthz.InstallHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
-	healthz.InstallReadyzHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
-	healthz.InstallLivezHandler(diagnosticMux, healthz.LogHealthz, healthz.PingHealthz)
-	diagnosticMux.Handle("/metrics", promhttp.Handler())
-	go func() {
-		setupLog.Info("Starting diagnostic server", "address", opts.DiagnosticAddr.Addr)
-		err := http.ListenAndServe(opts.DiagnosticAddr.Addr, diagnosticMux)
-		if err != nil {
-			cancel() // Canceling the context closes the associated channel, when the channel is closed, the secure server below also shuts down.
-			setupLog.Error(err, "diagnostic server exited with error")
-		}
-	}()
-
 	handler, err := newHandler(opts, authWH, mgr.GetScheme())
 	if err != nil {
 		setupLog.Error(err, "problem initializing handler")
@@ -167,11 +151,20 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 }
 
 func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
-	var (
-		authPath     = "/validate-token"
-		authHandler  = authWH.Build()
-		pathRecorder = mux.NewPathRecorderMux("oidc-webhook-authenticator")
+	const (
+		authPath       = "/validate-token"
+		defaultingPath = "/webhooks/mutating"
+		validatingPath = "/webhooks/validating"
+		metricsPath    = "/metrics"
 	)
+	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
+
+	healthz.InstallReadyzHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
+	healthz.InstallLivezHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
+	pathRecorder.Handle(metricsPath, promhttp.Handler())
+
+	authHandler := authWH.Build()
+	authHandler = withAuthz(authHandler, opts)
 	authHandler = metrics.InstrumentedHandler(authPath, authHandler)
 	pathRecorder.Handle(authPath, authHandler)
 
@@ -185,10 +178,8 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return nil, err
 	}
 
-	var (
-		defaultingPath    = "/webhooks/mutating"
-		defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingWebhook)
-	)
+	defaultingHandler := withAuthz(defaultingWebhook, opts)
+	defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingHandler)
 	pathRecorder.Handle(defaultingPath, defaultingHandler)
 
 	validatingWebhook := admission.ValidatingWebhookFor(oidc)
@@ -199,23 +190,24 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return nil, err
 	}
 
-	var (
-		validatingPath    = "/webhooks/validating"
-		validatingHandler = metrics.InstrumentedHandler(validatingPath, validatingWebhook)
-	)
+	validatingHandler := withAuthz(validatingWebhook, opts)
+	validatingHandler = metrics.InstrumentedHandler(validatingPath, validatingHandler)
 	pathRecorder.Handle(validatingPath, validatingHandler)
 
-	requestInfoResolver := &apirequest.RequestInfoFactory{}
-	failedHandler := genericapifilters.Unauthorized(clientgoscheme.Codecs)
+	return pathRecorder, nil
+}
 
-	handler := genericapifilters.WithAuthorization(pathRecorder, opts.Authorization.Authorizer, clientgoscheme.Codecs)
+func withAuthz(handler http.Handler, opts *options.Config) http.Handler {
+	var (
+		failedHandler       = genericapifilters.Unauthorized(clientgoscheme.Codecs)
+		requestInfoResolver = &apirequest.RequestInfoFactory{}
+	)
+
+	handler = genericapifilters.WithAuthorization(handler, opts.Authorization.Authorizer, clientgoscheme.Codecs)
 	handler = genericapifilters.WithAuthentication(handler, opts.Authentication.Authenticator, failedHandler, opts.Authentication.APIAudiences)
 	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
 	handler = genericapifilters.WithCacheControl(handler)
 	handler = genericfilters.WithPanicRecovery(handler, requestInfoResolver)
 
-	// Instrument the outermost handler to detect issues inside the handler chain.
-	handler = metrics.InstrumentedHandler("GLOBAL", handler)
-
-	return handler, nil
+	return handler
 }

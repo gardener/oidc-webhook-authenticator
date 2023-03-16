@@ -19,15 +19,10 @@ type Options struct {
 	Authentication *genericoptions.DelegatingAuthenticationOptions
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
 	ResyncPeriod   resyncPeriod
-	DiagnosticAddr bindAddr
 }
 
 type resyncPeriod struct {
 	Duration time.Duration
-}
-
-type bindAddr struct {
-	Addr string
 }
 
 // NewOptions return options with default values.
@@ -40,7 +35,6 @@ func NewOptions() *Options {
 		Authentication: recommended.Authentication,
 		Authorization:  recommended.Authorization,
 		ResyncPeriod:   resyncPeriod{},
-		DiagnosticAddr: bindAddr{},
 	}
 
 	opts.Authentication.RemoteKubeConfigFileOptional = true
@@ -60,7 +54,6 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	o.Authentication.AddFlags(fs)
 	o.Authorization.AddFlags(fs)
 	o.ResyncPeriod.AddFlags(fs)
-	o.DiagnosticAddr.AddFlags(fs)
 }
 
 func (s *resyncPeriod) AddFlags(fs *pflag.FlagSet) {
@@ -71,29 +64,12 @@ func (s *resyncPeriod) AddFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&s.Duration, "resync-period", time.Second*0, "resync period")
 }
 
-func (s *bindAddr) AddFlags(fs *pflag.FlagSet) {
-	if s == nil {
-		return
-	}
-
-	fs.StringVar(&s.Addr, "diagnostic-address", ":8080", "bind address for the diagnostic server (health checks, metrics, etc.)")
-}
-
 func (s *resyncPeriod) ApplyTo(c *resyncPeriod) error {
 	if s == nil {
 		return nil
 	}
 	c.Duration = time.Minute * 60
 
-	return nil
-}
-
-func (s *bindAddr) ApplyTo(d *bindAddr) error {
-	if s == nil {
-		return nil
-	}
-
-	d.Addr = s.Addr
 	return nil
 }
 
@@ -110,9 +86,6 @@ func (o *Options) ApplyTo(server *Config) error {
 		return err
 	}
 	if err := o.ResyncPeriod.ApplyTo(&server.ResyncPeriod); err != nil {
-		return err
-	}
-	if err := o.DiagnosticAddr.ApplyTo(&server.DiagnosticAddr); err != nil {
 		return err
 	}
 	return nil
@@ -134,5 +107,4 @@ type Config struct {
 	Authorization  apiserver.AuthorizationInfo
 	SecureServing  *apiserver.SecureServingInfo
 	ResyncPeriod   resyncPeriod
-	DiagnosticAddr bindAddr
 }

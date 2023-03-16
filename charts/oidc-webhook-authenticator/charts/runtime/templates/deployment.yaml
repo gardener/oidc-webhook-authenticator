@@ -84,21 +84,20 @@ spec:
         - --api-audiences={{ .Values.apiAudiences | join "," }}
         {{- end }}
         - --authorization-always-allow-paths={{ .Values.auth.authorizationAlwaysAllowPaths | join "," }}
-        - --diagnostic-address=":{{ .Values.diagnosticPort }}"
         livenessProbe:
           failureThreshold: 3
           httpGet:
             path: /livez
-            port: {{ .Values.diagnosticPort }}
-            scheme: HTTP
+            port: 10443
+            scheme: HTTPS
           initialDelaySeconds: 10
           periodSeconds: 20
         readinessProbe:
           failureThreshold: 2
           httpGet:
             path: /readyz
-            port: {{ .Values.diagnosticPort }}
-            scheme: HTTP
+            port: 10443
+            scheme: HTTPS
           initialDelaySeconds: 10
           periodSeconds: 15
         resources:
