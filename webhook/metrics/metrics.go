@@ -77,7 +77,7 @@ func NewTimerForTokenValidationRequest() *prometheus.Timer {
 }
 
 // InstrumentedHandler instrument http handler with request generic metrics.
-func InstrumentedHandler(path string, hookRaw http.Handler) http.Handler {
+func InstrumentedHandler(path string, handler http.Handler) http.Handler {
 	var (
 		label    = prometheus.Labels{"path": path}
 		latency  = requestLatency.MustCurryWith(label)
@@ -87,6 +87,6 @@ func InstrumentedHandler(path string, hookRaw http.Handler) http.Handler {
 
 	return promhttp.InstrumentHandlerDuration(latency,
 		promhttp.InstrumentHandlerCounter(total,
-			promhttp.InstrumentHandlerInFlight(inFlight, hookRaw),
+			promhttp.InstrumentHandlerInFlight(inFlight, handler),
 		))
 }
