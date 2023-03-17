@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	mock "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
@@ -26,12 +25,10 @@ import (
 	. "github.com/onsi/gomega"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/utils/pointer"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
@@ -90,16 +87,12 @@ var _ = Describe("OpenIDConnect controller", func() {
 			user3               = &user.DefaultInfo{Name: "big_elephant", Groups: []string{"fifth", "sixth"}, UID: "gamma"}
 			forbiddenUser       = &user.DefaultInfo{Name: "system:admin", Groups: []string{"seventh", "eight"}, UID: "delta"}
 			forbiddenGroupsUser = &user.DefaultInfo{Name: "sneaky_gazelle", Groups: []string{"ninth", "system:admin"}, UID: "epsilon"}
-			unionHandler        *unionAuthTokenHandler
-			authUID             types.UID
 		)
-		BeforeEach(func() {
-			unionHandler = &unionAuthTokenHandler{issuerHandlers: sync.Map{}, nameIssuerMapping: sync.Map{}, log: ctrl.Log.WithName("test")}
-			authUID = uuid.NewUUID()
-		})
 
 		Context("First Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
+				unionHandler := newUnionAuthTokenHandler()
+				authUID := uuid.NewUUID()
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: "https://issuer1"}
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://issuer2"}
 
@@ -133,6 +126,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		Context("Second Token Authenticator Handler Passes", func() {
 			It("Authentication should succeed", func() {
+				unionHandler := newUnionAuthTokenHandler()
+				authUID := uuid.NewUUID()
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "https://issuer1"}
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true, issuerURL: "https://issuer2"}
 
@@ -169,6 +164,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: false, issuerURL: "https://issuer1"}
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://issuer2"}
 				handler3 := &mockAuthRequestHandler{returnUser: user3, isAuthenticated: true, issuerURL: "https://issuer2"}
+				unionHandler := newUnionAuthTokenHandler()
+				authUID := uuid.NewUUID()
 
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
@@ -207,6 +204,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 			It("Authentication should fail", func() {
 				handler1 := &mockAuthRequestHandler{isAuthenticated: false, issuerURL: "https://issuer1"}
 				handler2 := &mockAuthRequestHandler{isAuthenticated: false, issuerURL: "https://issuer2"}
+				unionHandler := newUnionAuthTokenHandler()
+
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",
@@ -232,6 +231,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		Context("No Token Authenticator Handler available", func() {
 			It("Authentication should fail", func() {
+				unionHandler := newUnionAuthTokenHandler()
 				token, err := sign(map[string]interface{}{
 					"iss": "https://issuer2",
 				})
@@ -247,6 +247,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 		Context("Invalid jwt is passed", func() {
 			It("Authentication should fail", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: "https://issuer1"}
+				unionHandler := newUnionAuthTokenHandler()
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",
@@ -264,6 +265,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 		Context("Issuer is not present in the jwt claims", func() {
 			It("Authentication should fail", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: "https://issuer1"}
+				unionHandler := newUnionAuthTokenHandler()
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",
@@ -286,6 +288,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 		Context("User is authenticated with system: prefix", func() {
 			It("Authentication should fail because system: prefix is present in the username", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: forbiddenUser, isAuthenticated: true, issuerURL: "https://issuer1"}
+				unionHandler := newUnionAuthTokenHandler()
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",
@@ -305,6 +308,9 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 			It("Authentication should succeed because but groups starting with system: should be filtered", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: forbiddenGroupsUser, isAuthenticated: true, issuerURL: "https://issuer1"}
+				unionHandler := newUnionAuthTokenHandler()
+				authUID := uuid.NewUUID()
+
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",
@@ -333,6 +339,9 @@ var _ = Describe("OpenIDConnect controller", func() {
 			It("Authentication should succeed", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: "https://issuer2", err: errors.New("first")}
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: true, issuerURL: "https://issuer2"}
+				unionHandler := newUnionAuthTokenHandler()
+				authUID := uuid.NewUUID()
+
 				unionHandler.registerHandler("https://issuer2", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",
@@ -365,6 +374,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 				handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: "https://issuer1", err: errors.New("first")}
 				handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://issuer2", err: errors.New("second")}
 				handler3 := &mockAuthRequestHandler{returnUser: user3, isAuthenticated: true, issuerURL: "https://issuer2", err: errors.New("third")}
+				unionHandler := newUnionAuthTokenHandler()
+
 				unionHandler.registerHandler("https://issuer1", "1", &authenticatorInfo{
 					Token: handler1,
 					name:  "1",

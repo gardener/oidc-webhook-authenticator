@@ -174,7 +174,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager specifies how the controller is built to watch custom resources of kind OpenIDConnect
 func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.unionAuthTokenHandler == nil {
-		r.unionAuthTokenHandler = &unionAuthTokenHandler{issuerHandlers: sync.Map{}, nameIssuerMapping: sync.Map{}, log: r.Log}
+		r.unionAuthTokenHandler = newUnionAuthTokenHandler()
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -192,9 +192,17 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // unionAuthTokenHandler authenticates tokens using a chain of authenticator.Token objects
 type unionAuthTokenHandler struct {
-	issuerHandlers    sync.Map
+	mutex             sync.RWMutex
+	issuerHandlers    map[string]map[string]*authenticatorInfo
 	nameIssuerMapping sync.Map
-	log               logr.Logger
+}
+
+func newUnionAuthTokenHandler() *unionAuthTokenHandler {
+	return &unionAuthTokenHandler{
+		mutex:             sync.RWMutex{},
+		issuerHandlers:    map[string]map[string]*authenticatorInfo{},
+		nameIssuerMapping: sync.Map{},
+	}
 }
 
 // AuthenticateToken authenticates the token using a chain of authenticator.Token objects.
@@ -209,41 +217,31 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 		return nil, false, err
 	}
 
-	val, ok := u.issuerHandlers.Load(iss)
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+
+	handlers, ok := u.issuerHandlers[iss]
 	if !ok {
 		return nil, false, nil
 	}
 
-	handlers, ok := val.(*sync.Map)
-	if !ok {
-		return nil, false, nil
-	}
-
-	handlers.Range(func(key interface{}, value interface{}) bool {
-		currAuthRequestHandler, ok := value.(*authenticatorInfo)
-		if !ok {
-			u.log.Info("cannot convert to authenticatorInfo", "key", key, "value", value)
-
-			return false
-		}
-
-		fulfilled, err := areExpirationRequirementsFulfilled(token, currAuthRequestHandler.maxTokenValiditySeconds)
+	for _, h := range handlers {
+		fulfilled, err := areExpirationRequirementsFulfilled(token, h.maxTokenValiditySeconds)
 		if err != nil || !fulfilled {
 			// keep iterating over the handlers
 			// since the requirements can be met for a different handler
-			return true
+			continue
 		}
 
-		resp, authenticated, err := currAuthRequestHandler.AuthenticateToken(ctx, token)
+		resp, authenticated, err := h.AuthenticateToken(ctx, token)
 
-		done := err == nil && authenticated
-		if done {
+		if err == nil && authenticated {
 			userName := resp.User.GetName()
 			// Mark token as invalid when userName has "system:" prefix.
 			if strings.HasPrefix(userName, authenticationv1alpha1.SystemPrefix) {
 				// TODO add logging
 
-				return false
+				break
 			}
 
 			filteredGroups := []string{}
@@ -258,8 +256,8 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 				User: &user.DefaultInfo{
 					Name: userName,
 					Extra: map[string][]string{
-						"gardener.cloud/authenticator/name": {currAuthRequestHandler.name},
-						"gardener.cloud/authenticator/uid":  {string(currAuthRequestHandler.uid)},
+						"gardener.cloud/authenticator/name": {h.name},
+						"gardener.cloud/authenticator/uid":  {string(h.uid)},
 					},
 					Groups: filteredGroups,
 					UID:    resp.User.GetUID(),
@@ -268,46 +266,45 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 
 			success = true
 		}
-
-		return !done
-	})
+	}
 
 	return info, success, nil
 }
 
 func (u *unionAuthTokenHandler) registerHandler(issuerURL string, handlerKey string, authInfo *authenticatorInfo) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 	// remove previous location of the handler if issuer url differs
 	if val, ok := u.nameIssuerMapping.Load(handlerKey); ok {
 		// conversions should be safe
 		url := val.(string)
 		if url != issuerURL {
-			if m, ok := u.issuerHandlers.Load(url); ok {
-				asMap := m.(*sync.Map)
-				asMap.Delete(handlerKey)
+			if m, ok := u.issuerHandlers[url]; ok {
+				delete(m, handlerKey)
 			}
 		}
 	}
 
-	if val, ok := u.issuerHandlers.Load(issuerURL); ok {
+	if m, ok := u.issuerHandlers[issuerURL]; ok {
 		// conversions should be safe
-		asMap := val.(*sync.Map)
-		asMap.Store(handlerKey, authInfo)
+		m[handlerKey] = authInfo
 		u.nameIssuerMapping.Store(handlerKey, issuerURL)
 	} else {
-		issuerHandlers := &sync.Map{}
-		issuerHandlers.Store(handlerKey, authInfo)
-		u.issuerHandlers.Store(issuerURL, issuerHandlers)
+		issuerHandlers := map[string]*authenticatorInfo{}
+		issuerHandlers[handlerKey] = authInfo
+		u.issuerHandlers[issuerURL] = issuerHandlers
 		u.nameIssuerMapping.Store(handlerKey, issuerURL)
 	}
 }
 
 func (u *unionAuthTokenHandler) deleteHandler(handlerKey string) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 	if val, ok := u.nameIssuerMapping.Load(handlerKey); ok {
 		// conversions should be safe
 		url := val.(string)
-		if m, ok := u.issuerHandlers.Load(url); ok {
-			asMap := m.(*sync.Map)
-			asMap.Delete(handlerKey)
+		if m, ok := u.issuerHandlers[url]; ok {
+			delete(m, handlerKey)
 		}
 
 		u.nameIssuerMapping.Delete(handlerKey)

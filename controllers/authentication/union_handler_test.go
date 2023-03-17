@@ -5,6 +5,7 @@
 package authentication
 
 import (
+	"fmt"
 	"sync"
 
 	. "github.com/onsi/ginkgo"
@@ -20,29 +21,16 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		handlerKey2 = "my-unique-name-2"
 		handlerKey3 = "my-unique-name-3"
 	)
-	var (
-		unionHandler *unionAuthTokenHandler
-	)
-
-	BeforeEach(func() {
-		unionHandler = &unionAuthTokenHandler{}
-	})
 
 	verifyHandler := func(u *unionAuthTokenHandler, issuer string, handlerKey string, auth *authenticatorInfo) {
-		val, ok := u.issuerHandlers.Load(issuer)
+		m, ok := u.issuerHandlers[issuer]
 		Expect(ok).To(BeTrue())
 
-		asMap, ok := val.(*sync.Map)
-		Expect(ok).To(BeTrue())
-
-		val, ok = asMap.Load(handlerKey)
-		Expect(ok).To(BeTrue())
-
-		handler, ok := val.(*authenticatorInfo)
+		handler, ok := m[handlerKey]
 		Expect(ok).To(BeTrue())
 		Expect(handler).To(Equal(auth))
 
-		val, ok = u.nameIssuerMapping.Load(handlerKey)
+		val, ok := u.nameIssuerMapping.Load(handlerKey)
 		Expect(ok).To(BeTrue())
 
 		url, ok := val.(string)
@@ -51,18 +39,48 @@ var _ = Describe("OpenidconnectWebhook", func() {
 	}
 
 	verifyHandlerDoesNotExist := func(u *unionAuthTokenHandler, issuer string, handlerKey string) {
-		val, ok := u.issuerHandlers.Load(issuer)
+		m, ok := u.issuerHandlers[issuer]
 		Expect(ok).To(BeTrue())
 
-		asMap, ok := val.(*sync.Map)
-		Expect(ok).To(BeTrue())
-
-		_, ok = asMap.Load(handlerKey)
+		_, ok = m[handlerKey]
 		Expect(ok).To(BeFalse())
 	}
 
 	Context("Registering handlers", func() {
+		It("should successfully register multiple handlers", func() {
+			unionHandler := newUnionAuthTokenHandler()
+			wg := sync.WaitGroup{}
+			iterations := 100
+			for i := 0; i < iterations; i++ {
+				wg.Add(1)
+				go func(i int) {
+					unionHandler.registerHandler("test", fmt.Sprintf("t%v", i), &authenticatorInfo{
+						Token: nil,
+						name:  "test",
+						uid:   "someid",
+					})
+					wg.Done()
+				}(i)
+			}
+			wg.Wait()
+			length := 0
+
+			unionHandler.nameIssuerMapping.Range(func(_, _ interface{}) bool {
+				length++
+
+				return true
+			})
+			Expect(length).To(Equal(iterations))
+
+			handlers, ok := unionHandler.issuerHandlers["test"]
+			Expect(ok).To(BeTrue())
+
+			length = len(handlers)
+			Expect(length).To(Equal(iterations))
+		})
+
 		It("should successfully register a single handler", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
@@ -77,6 +95,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should successfully register a single handler then change issuer", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
@@ -98,6 +117,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should successfully register a single handler then delete it", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
@@ -110,6 +130,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should successfully register a single handler change its issuer then delete it", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
@@ -134,6 +155,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should successfully register multiple handlers", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
@@ -172,6 +194,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should successfully register multiple handlers then change issuer of one of them", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
@@ -224,6 +247,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should successfully register multiple handlers then delete one of them", func() {
+			unionHandler := newUnionAuthTokenHandler()
 			unionHandler.registerHandler(issuer1, handlerKey1, &authenticatorInfo{
 				Token: nil,
 				name:  "test",
