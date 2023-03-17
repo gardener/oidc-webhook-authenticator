@@ -10,10 +10,14 @@ import (
 	"net/http"
 	"os"
 
+	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
+	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
-	"github.com/go-logr/logr"
+	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -22,17 +26,14 @@ import (
 	genericfilters "k8s.io/apiserver/pkg/server/filters"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/mux"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/cli/globalflag"
 	"k8s.io/component-base/version/verflag"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-
-	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
-	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // NewOIDCWebhookAuthenticatorCommand is the root command for OIDC webhook authenticator.
@@ -150,12 +151,22 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 }
 
 func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
+	const (
+		authPath       = "/validate-token"
+		defaultingPath = "/webhooks/mutating"
+		validatingPath = "/webhooks/validating"
+		metricsPath    = "/metrics"
+	)
 	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
 
-	healthz.InstallHandler(pathRecorder)
-	pathRecorder.Handle("/metrics", promhttp.Handler())
+	healthz.InstallReadyzHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
+	healthz.InstallLivezHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
+	pathRecorder.Handle(metricsPath, promhttp.Handler())
 
-	pathRecorder.Handle("/validate-token", authWH.Build())
+	authHandler := authWH.Build()
+	authHandler = withAuthz(authHandler, opts)
+	authHandler = metrics.InstrumentedHandler(authPath, authHandler)
+	pathRecorder.Handle(authPath, authHandler)
 
 	oidc := &authenticationv1alpha1.OpenIDConnect{}
 
@@ -166,7 +177,10 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	if err := defaultingWebhook.InjectScheme(scheme); err != nil {
 		return nil, err
 	}
-	pathRecorder.Handle("/webhooks/mutating", defaultingWebhook)
+
+	defaultingHandler := withAuthz(defaultingWebhook, opts)
+	defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingHandler)
+	pathRecorder.Handle(defaultingPath, defaultingHandler)
 
 	validatingWebhook := admission.ValidatingWebhookFor(oidc)
 	if err := validatingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Validating")); err != nil {
@@ -176,16 +190,24 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return nil, err
 	}
 
-	pathRecorder.Handle("/webhooks/validating", validatingWebhook)
+	validatingHandler := withAuthz(validatingWebhook, opts)
+	validatingHandler = metrics.InstrumentedHandler(validatingPath, validatingHandler)
+	pathRecorder.Handle(validatingPath, validatingHandler)
 
-	requestInfoResolver := &apirequest.RequestInfoFactory{}
-	failedHandler := genericapifilters.Unauthorized(clientgoscheme.Codecs)
+	return pathRecorder, nil
+}
 
-	handler := genericapifilters.WithAuthorization(pathRecorder, opts.Authorization.Authorizer, clientgoscheme.Codecs)
+func withAuthz(handler http.Handler, opts *options.Config) http.Handler {
+	var (
+		failedHandler       = genericapifilters.Unauthorized(clientgoscheme.Codecs)
+		requestInfoResolver = &apirequest.RequestInfoFactory{}
+	)
+
+	handler = genericapifilters.WithAuthorization(handler, opts.Authorization.Authorizer, clientgoscheme.Codecs)
 	handler = genericapifilters.WithAuthentication(handler, opts.Authentication.Authenticator, failedHandler, opts.Authentication.APIAudiences)
 	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
 	handler = genericapifilters.WithCacheControl(handler)
 	handler = genericfilters.WithPanicRecovery(handler, requestInfoResolver)
 
-	return handler, nil
+	return handler
 }

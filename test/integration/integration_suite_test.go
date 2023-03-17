@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -40,6 +40,7 @@ import (
 var (
 	apiServerSecurePort                          int
 	apiserverToken                               string
+	defaultServiceAccountToken                   string
 	testEnv                                      *oidctestenv.OIDCWebhookTestEnvironment
 	oidcOut, oidcErr, apiserverOut, apiserverErr bytes.Buffer
 	k8sClient                                    client.Client
@@ -122,6 +123,26 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	apiserverToken = resp.Status.Token
+
+	defaultServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "default",
+		},
+	}
+	_, err = clientset.CoreV1().ServiceAccounts("default").Create(ctx, defaultServiceAccount, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	resp, err = clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "default", &authenticationv1.TokenRequest{
+		Spec: authenticationv1.TokenRequestSpec{
+			ExpirationSeconds: &ttl,
+		},
+	}, metav1.CreateOptions{})
+
+	Expect(err).NotTo(HaveOccurred())
+
+	defaultServiceAccountToken = resp.Status.Token
+
 }, 60)
 
 var _ = AfterSuite(func() {
@@ -130,7 +151,7 @@ var _ = AfterSuite(func() {
 
 		dumpFn := func(filename string, bytes []byte, perm fs.FileMode) {
 			if len(bytes) > 0 {
-				ioutil.WriteFile(filename, bytes, perm)
+				os.WriteFile(filename, bytes, perm)
 			}
 		}
 

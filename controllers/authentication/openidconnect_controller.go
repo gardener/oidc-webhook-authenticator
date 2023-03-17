@@ -10,7 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 	"strings"
@@ -394,7 +394,7 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read response body: %v", err)
 	}

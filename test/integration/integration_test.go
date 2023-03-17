@@ -14,7 +14,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -532,6 +532,35 @@ var _ = Describe("Integration", func() {
 
 	Context("Authenticating user against the webhook authenticator via token from a trusted identity provider", func() {
 		var (
+			makeTokenReviewRequestAndAssertError = func(token, userToken string, ca []byte, expectedStatusCode int, expectedErrMsgPart string) {
+				caCertPool := x509.NewCertPool()
+				caCertPool.AppendCertsFromPEM(ca)
+
+				review := &authenticationv1.TokenReview{
+					Spec: authenticationv1.TokenReviewSpec{
+						Token: userToken,
+					},
+				}
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+				}
+				client := &http.Client{Transport: tr}
+				body, err := json.Marshal(review)
+				Expect(err).NotTo(HaveOccurred())
+				req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
+				Expect(err).NotTo(HaveOccurred())
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
+
+				res, err := client.Do(req)
+				Expect(err).NotTo(HaveOccurred())
+
+				responseBytes, err := io.ReadAll(res.Body)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(responseBytes)).To(ContainSubstring(expectedErrMsgPart))
+
+				Expect(res.StatusCode).To(Equal(expectedStatusCode))
+			}
+
 			makeTokenReviewRequest = func(apiserverToken, userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
 				caCertPool := x509.NewCertPool()
 				caCertPool.AppendCertsFromPEM(ca)
@@ -557,7 +586,7 @@ var _ = Describe("Integration", func() {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
 
-						responseBytes, err := ioutil.ReadAll(res.Body)
+						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
 
 						err = json.Unmarshal(responseBytes, reviewResponse)
@@ -574,7 +603,7 @@ var _ = Describe("Integration", func() {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
 
-						responseBytes, err := ioutil.ReadAll(res.Body)
+						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
 
 						err = json.Unmarshal(responseBytes, reviewResponse)
@@ -589,6 +618,14 @@ var _ = Describe("Integration", func() {
 				return reviewResponse
 			}
 		)
+
+		It("Should not authenticate the token review request", func() {
+			makeTokenReviewRequestAndAssertError("invalid-token", "token", testEnv.OIDCServerCA(), http.StatusUnauthorized, "Unauthorized")
+		})
+
+		It("Should not authorize the token review request", func() {
+			makeTokenReviewRequestAndAssertError(defaultServiceAccountToken, "token", testEnv.OIDCServerCA(), http.StatusForbidden, `User \"system:serviceaccount:default:default\" cannot post path \"/validate-token\"`)
+		})
 
 		It("Should authenticate token with default prefixes for group and user", func() {
 			idp := createAndStartIDPServer(1)

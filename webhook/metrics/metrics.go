@@ -5,8 +5,10 @@
 package metrics
 
 import (
+	"net/http"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -20,16 +22,39 @@ var (
 		Help:      "Number of token validation requests.",
 	}, []string{"result"})
 
-	durationTokenValidation = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	durationTokenValidation = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      "token_validation_time_seconds",
 		Subsystem: subsystemName,
 		Help:      "Duration of HTTP token validation requests.",
 	}, []string{})
+
+	requestLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:      "path_latency_seconds",
+		Subsystem: subsystemName,
+		Help:      "Histogram of the latency of processing HTTP requests",
+	},
+		[]string{"path"},
+	)
+
+	requestTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "path_requests_total",
+		Subsystem: subsystemName,
+		Help:      "Total number of HTTP requests by path and code.",
+	},
+		[]string{"path", "code"},
+	)
+
+	requestInFlight = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:      "path_requests_in_flight",
+		Subsystem: subsystemName,
+		Help:      "Number of currently server HTTP requests.",
+	},
+		[]string{"path"},
+	)
 )
 
 func init() {
-	prometheus.Register(totalTokenValidations)
-	prometheus.Register(durationTokenValidation)
+	prometheus.MustRegister(totalTokenValidations, durationTokenValidation, requestLatency, requestTotal, requestInFlight)
 }
 
 // IncTotalRequestValidationErrors increments the total number of errors occured during token validation requests
@@ -49,4 +74,19 @@ func IncTotalRequestValidations(authenticated bool) {
 // NewTimerForTokenValidationRequest creates a new timer for measuring the time needed for a token validation request to execute
 func NewTimerForTokenValidationRequest() *prometheus.Timer {
 	return prometheus.NewTimer(durationTokenValidation.WithLabelValues())
+}
+
+// InstrumentedHandler instrument http handler with request generic metrics.
+func InstrumentedHandler(path string, handler http.Handler) http.Handler {
+	var (
+		label    = prometheus.Labels{"path": path}
+		latency  = requestLatency.MustCurryWith(label)
+		total    = requestTotal.MustCurryWith(label)
+		inFlight = requestInFlight.With(label)
+	)
+
+	return promhttp.InstrumentHandlerDuration(latency,
+		promhttp.InstrumentHandlerCounter(total,
+			promhttp.InstrumentHandlerInFlight(inFlight, handler),
+		))
 }
