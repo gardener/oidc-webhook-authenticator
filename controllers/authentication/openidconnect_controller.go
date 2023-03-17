@@ -194,14 +194,14 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 type unionAuthTokenHandler struct {
 	mutex             sync.RWMutex
 	issuerHandlers    map[string]map[string]*authenticatorInfo
-	nameIssuerMapping sync.Map
+	nameIssuerMapping map[string]string
 }
 
 func newUnionAuthTokenHandler() *unionAuthTokenHandler {
 	return &unionAuthTokenHandler{
 		mutex:             sync.RWMutex{},
 		issuerHandlers:    map[string]map[string]*authenticatorInfo{},
-		nameIssuerMapping: sync.Map{},
+		nameIssuerMapping: map[string]string{},
 	}
 }
 
@@ -275,9 +275,7 @@ func (u *unionAuthTokenHandler) registerHandler(issuerURL string, handlerKey str
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
 	// remove previous location of the handler if issuer url differs
-	if val, ok := u.nameIssuerMapping.Load(handlerKey); ok {
-		// conversions should be safe
-		url := val.(string)
+	if url, ok := u.nameIssuerMapping[handlerKey]; ok {
 		if url != issuerURL {
 			if m, ok := u.issuerHandlers[url]; ok {
 				delete(m, handlerKey)
@@ -288,26 +286,24 @@ func (u *unionAuthTokenHandler) registerHandler(issuerURL string, handlerKey str
 	if m, ok := u.issuerHandlers[issuerURL]; ok {
 		// conversions should be safe
 		m[handlerKey] = authInfo
-		u.nameIssuerMapping.Store(handlerKey, issuerURL)
+		u.nameIssuerMapping[handlerKey] = issuerURL
 	} else {
 		issuerHandlers := map[string]*authenticatorInfo{}
 		issuerHandlers[handlerKey] = authInfo
 		u.issuerHandlers[issuerURL] = issuerHandlers
-		u.nameIssuerMapping.Store(handlerKey, issuerURL)
+		u.nameIssuerMapping[handlerKey] = issuerURL
 	}
 }
 
 func (u *unionAuthTokenHandler) deleteHandler(handlerKey string) {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
-	if val, ok := u.nameIssuerMapping.Load(handlerKey); ok {
-		// conversions should be safe
-		url := val.(string)
+	if url, ok := u.nameIssuerMapping[handlerKey]; ok {
 		if m, ok := u.issuerHandlers[url]; ok {
 			delete(m, handlerKey)
 		}
 
-		u.nameIssuerMapping.Delete(handlerKey)
+		delete(u.nameIssuerMapping, handlerKey)
 	}
 }
 

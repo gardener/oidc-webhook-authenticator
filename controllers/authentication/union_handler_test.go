@@ -30,10 +30,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		Expect(ok).To(BeTrue())
 		Expect(handler).To(Equal(auth))
 
-		val, ok := u.nameIssuerMapping.Load(handlerKey)
-		Expect(ok).To(BeTrue())
-
-		url, ok := val.(string)
+		url, ok := u.nameIssuerMapping[handlerKey]
 		Expect(ok).To(BeTrue())
 		Expect(url).To(Equal(issuer))
 	}
@@ -63,13 +60,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 				}(i)
 			}
 			wg.Wait()
-			length := 0
-
-			unionHandler.nameIssuerMapping.Range(func(_, _ interface{}) bool {
-				length++
-
-				return true
-			})
+			length := len(unionHandler.nameIssuerMapping)
 			Expect(length).To(Equal(iterations))
 
 			handlers, ok := unionHandler.issuerHandlers["test"]
