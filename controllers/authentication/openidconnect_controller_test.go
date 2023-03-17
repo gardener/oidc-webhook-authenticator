@@ -472,7 +472,6 @@ var _ = Describe("OpenIDConnect controller", func() {
 		Describe("retrieving the JWKS key Set", func() {
 			Context("request to IDP server without valid CA certificate", func() {
 				It("request should fail", func() {
-					keySet, err := remoteKeySet(ctx, fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
 					containsAnyOf := func(s string, anyOf []string) bool {
 						for _, v := range anyOf {
 							if strings.Contains(s, v) {
@@ -482,11 +481,17 @@ var _ = Describe("OpenIDConnect controller", func() {
 						return false
 					}
 
-					// Different errors are returned depending on the OS since go 1.18
-					// See a similar issue here https://github.com/golang/go/issues/51991
-					expectedAnyOf := []string{"certificate is not trusted", "certificate signed by unknown authority"}
-					Expect(containsAnyOf(err.Error(), expectedAnyOf)).To(BeTrue())
-					Expect(keySet).To(BeNil())
+					Eventually(func() bool {
+						keySet, err := remoteKeySet(ctx, fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
+						if err == nil {
+							return false
+						}
+
+						// Different errors are returned depending on the OS since go 1.18
+						// See a similar issue here https://github.com/golang/go/issues/51991
+						expectedAnyOf := []string{"certificate is not trusted", "certificate signed by unknown authority"}
+						return containsAnyOf(err.Error(), expectedAnyOf) && keySet == nil
+					}, time.Second*10, time.Second).Should(BeTrue())
 				})
 			})
 
