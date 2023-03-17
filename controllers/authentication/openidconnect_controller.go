@@ -207,11 +207,6 @@ func newUnionAuthTokenHandler() *unionAuthTokenHandler {
 
 // AuthenticateToken authenticates the token using a chain of authenticator.Token objects.
 func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
-	var (
-		info    *authenticator.Response
-		success bool
-	)
-
 	iss, err := getIssuerURL(token)
 	if err != nil {
 		return nil, false, err
@@ -241,7 +236,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 			if strings.HasPrefix(userName, authenticationv1alpha1.SystemPrefix) {
 				// TODO add logging
 
-				break
+				return nil, false, nil
 			}
 
 			filteredGroups := []string{}
@@ -252,7 +247,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 				}
 			}
 
-			info = &authenticator.Response{
+			info := &authenticator.Response{
 				User: &user.DefaultInfo{
 					Name: userName,
 					Extra: map[string][]string{
@@ -264,11 +259,11 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 				},
 			}
 
-			success = true
+			return info, true, nil
 		}
 	}
 
-	return info, success, nil
+	return nil, false, nil
 }
 
 func (u *unionAuthTokenHandler) registerHandler(issuerURL string, handlerKey string, authInfo *authenticatorInfo) {
