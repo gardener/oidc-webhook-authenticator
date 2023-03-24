@@ -25,5 +25,5 @@ trap cleanup EXIT
 oidc_binary="$temp_dir/oidc-webhook-authenticator.test"
 CGO_ENABLED=0 GOARCH="$(go env GOARCH)" GO111MODULE=on go build -o $oidc_binary cmd/oidc-webhook-authenticator/authenticator.go
 
-test_env_dir=$(setup-envtest use -p path 1.23)
+test_env_dir=$(setup-envtest use -p path 1.26)
 TEST_ASSET_OIDC_WEBHOOK_AUTHENTICATOR=$oidc_binary KUBEBUILDER_ASSETS="$test_env_dir" go test ./... -v
