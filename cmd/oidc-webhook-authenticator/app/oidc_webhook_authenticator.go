@@ -161,7 +161,10 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 
 	healthz.InstallReadyzHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
 	healthz.InstallLivezHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
-	pathRecorder.Handle(metricsPath, promhttp.Handler())
+
+	metricsHandler := promhttp.Handler()
+	metricsHandler = withAuthz(metricsHandler, opts)
+	pathRecorder.Handle(metricsPath, metricsHandler)
 
 	authHandler := authWH.Build()
 	authHandler = withAuthz(authHandler, opts)
