@@ -33,7 +33,7 @@ webhookConfig:
 kubeconfig:
 
 auth:
-  # /readyz, /livez endpoints are always allowed
+  # /healthz, /readyz, /livez endpoints are always allowed
   # Kubeconfig to the target authentication and authorization cluster. In-cluster configuration will be used if not specified.
   # If automountServiceAccountToken is set to `true` then this value is required because in-cluster configuration will not work.
   kubeconfig:

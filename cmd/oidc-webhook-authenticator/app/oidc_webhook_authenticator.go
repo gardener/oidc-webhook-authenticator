@@ -159,6 +159,7 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	)
 	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
 
+	healthz.InstallHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
 	healthz.InstallReadyzHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
 	healthz.InstallLivezHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
 
