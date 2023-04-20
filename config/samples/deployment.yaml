@@ -95,6 +95,7 @@ spec:
         args:
         - --tls-cert-file=/var/run/certs/tls.crt
         - --tls-private-key-file=/var/run/certs/tls.key
+        - --zap-log-level=10
         - --v=6
         resources:
           requests:

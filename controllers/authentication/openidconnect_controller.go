@@ -195,6 +195,7 @@ type unionAuthTokenHandler struct {
 	mutex             sync.RWMutex
 	issuerHandlers    map[string]map[string]*authenticatorInfo
 	nameIssuerMapping map[string]string
+	log               logr.Logger
 }
 
 func newUnionAuthTokenHandler() *unionAuthTokenHandler {
@@ -202,6 +203,7 @@ func newUnionAuthTokenHandler() *unionAuthTokenHandler {
 		mutex:             sync.RWMutex{},
 		issuerHandlers:    map[string]map[string]*authenticatorInfo{},
 		nameIssuerMapping: map[string]string{},
+		log:               ctrl.Log.WithName("unionAuthTokenHandler"),
 	}
 }
 
@@ -209,6 +211,7 @@ func newUnionAuthTokenHandler() *unionAuthTokenHandler {
 func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
 	iss, err := getIssuerURL(token)
 	if err != nil {
+		u.log.V(10).Info("Failed retrieving issuer URL from token", "error", err)
 		return nil, false, err
 	}
 
@@ -217,18 +220,30 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 
 	handlers, ok := u.issuerHandlers[iss]
 	if !ok {
+		u.log.V(10).Info(fmt.Sprintf("No available handlers for issuer %s", iss))
 		return nil, false, nil
 	}
 
 	for _, h := range handlers {
 		fulfilled, err := areExpirationRequirementsFulfilled(token, h.maxTokenValiditySeconds)
-		if err != nil || !fulfilled {
+		if err != nil {
 			// keep iterating over the handlers
 			// since the requirements can be met for a different handler
+			u.log.V(10).Info("Token expiration requirements are not fulfilled", "error", err)
+			continue
+		}
+		if !fulfilled {
+			// keep iterating over the handlers
+			// since the requirements can be met for a different handler
+			u.log.V(10).Info("Token expiration requirements are not fulfilled")
 			continue
 		}
 
 		resp, authenticated, err := h.AuthenticateToken(ctx, token)
+
+		if !authenticated && err != nil {
+			u.log.V(10).Info("Authentication error", "error", err)
+		}
 
 		if err == nil && authenticated {
 			userName := resp.User.GetName()
