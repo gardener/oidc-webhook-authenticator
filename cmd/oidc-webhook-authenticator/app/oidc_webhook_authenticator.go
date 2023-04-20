@@ -41,12 +41,15 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 	opt := options.NewOptions()
 	conf := &options.Config{}
 	settupLogger := ctrl.Log.WithName("setup")
+	zapOpts := zap.Options{}
 
 	cmd := &cobra.Command{
 		Use: "oidc-webhook-authenticator",
 		Run: func(cmd *cobra.Command, args []string) {
 			verflag.PrintAndExitIfRequested()
 			cliflag.PrintFlags(cmd.Flags())
+
+			ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOpts)))
 
 			err := opt.ApplyTo(conf)
 			if err != nil {
@@ -81,10 +84,8 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 	opt.AddFlags(fs)
 	globalflag.AddGlobalFlags(fs, "global")
 
-	opts := zap.Options{}
-	opts.BindFlags(goflag.CommandLine)
+	zapOpts.BindFlags(goflag.CommandLine)
 	fs.AddGoFlagSet(goflag.CommandLine)
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	return cmd
 }
