@@ -40,7 +40,7 @@ import (
 func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 	opt := options.NewOptions()
 	conf := &options.Config{}
-	settupLogger := ctrl.Log.WithName("setup")
+	setupLogger := ctrl.Log.WithName("setup")
 	zapOpts := zap.Options{}
 
 	cmd := &cobra.Command{
@@ -53,14 +53,14 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 
 			err := opt.ApplyTo(conf)
 			if err != nil {
-				settupLogger.Error(err, "cannot apply options")
+				setupLogger.Error(err, "cannot apply options")
 
 				os.Exit(1)
 			}
 
-			err = run(ctx, conf, settupLogger)
+			err = run(ctx, conf, setupLogger)
 			if err != nil {
-				settupLogger.Error(err, "cannot run")
+				setupLogger.Error(err, "cannot run")
 
 				os.Exit(1)
 			}
