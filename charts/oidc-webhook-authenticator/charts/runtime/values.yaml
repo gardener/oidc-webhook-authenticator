@@ -63,3 +63,6 @@ apiAudiences: []
 additionalLabels:
   hpa: {}
   deployment: {}
+
+additionalAnnotations:
+  service: {}

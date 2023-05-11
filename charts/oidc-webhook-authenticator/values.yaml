@@ -88,3 +88,5 @@ runtime:
   additionalLabels:
     deployment: {}
     hpa: {}
+  additionalAnnotations:
+    service: {}
