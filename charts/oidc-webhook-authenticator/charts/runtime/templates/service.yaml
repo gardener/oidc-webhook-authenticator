@@ -11,6 +11,10 @@ metadata:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
+  {{- if .Values.additionalAnnotations.service }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations.service | trim | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   selector:
