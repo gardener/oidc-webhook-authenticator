@@ -122,6 +122,7 @@ spec:
           mountPath: /var/run/oidc-webhook-authenticator/serviceaccount
           readOnly: true
         {{- end }}
+      hostNetwork: true
       volumes:
       - name: tls
         secret:
