@@ -5,4 +5,4 @@
 apiVersion: v2
 description: A Helm chart to deploy the oidc-webhook-authenticator runtime related resources
 name: runtime
-version: 0.1.0
+version: 0.1.1
