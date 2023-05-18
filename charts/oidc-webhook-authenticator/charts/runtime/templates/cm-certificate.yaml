@@ -17,6 +17,10 @@ spec:
   - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}.svc
   - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}.svc.cluster
   - {{ include "oidc-webhook-authenticator.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  {{- if .Values.clusterIP }}
+  ipAddresses:
+  - {{ .Values.clusterIP }}
+  {{- end }}
   issuerRef:
     kind: Issuer
     name: {{ include "oidc-webhook-authenticator.name" . }}-issuer
