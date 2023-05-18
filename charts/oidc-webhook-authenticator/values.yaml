@@ -90,3 +90,6 @@ runtime:
     hpa: {}
   additionalAnnotations:
     service: {}
+
+  # If set the oidc-webhook-authenticator service will have this cluster IP assigned
+  clusterIP: "" 

@@ -17,6 +17,9 @@ metadata:
   {{- end }}
 spec:
   type: ClusterIP
+  {{- if .Values.clusterIP }}
+  clusterIP: {{ .Values.clusterIP }}
+  {{- end }}
   selector:
     app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
   ports:
