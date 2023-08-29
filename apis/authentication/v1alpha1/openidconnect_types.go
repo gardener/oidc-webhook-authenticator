@@ -116,6 +116,12 @@ type OIDCAuthenticationSpec struct {
 
 	// +optional
 
+	// ExtraClaims, if specified, causes the OIDCAuthenticator to copy list claims to the
+	// user Extra field.
+	ExtraClaims *string `json:"extraClaims,omitempty"`
+
+	// +optional
+
 	// CABundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate.
 	// If unspecified, system's trusted certificates are used.
 	CABundle []byte `json:"caBundle,omitempty"`

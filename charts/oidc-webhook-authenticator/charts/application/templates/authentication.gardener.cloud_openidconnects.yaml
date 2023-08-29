@@ -131,6 +131,10 @@ spec:
                   to verify that all the required claims key value pairs are present
                   in the ID Token.
                 type: object
+              extraClaims:
+                description: ExtraClaims, if specified, causes the OIDCAuthenticator
+                  to copy these additional claims to the user extra field.
+                type: string
               supportedSigningAlgs:
                 default:
                 - RS256

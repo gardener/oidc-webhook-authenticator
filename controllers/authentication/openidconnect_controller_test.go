@@ -404,6 +404,109 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(resp).To(BeNil())
 			})
 		})
+
+		Context("Extra claims handling", func() {
+			unionHandler := newUnionAuthTokenHandler()
+			issuer1URL := "https://issuer1"
+			handler1 := &mockAuthRequestHandler{returnUser: user1, isAuthenticated: true, issuerURL: issuer1URL}
+			handler2 := &mockAuthRequestHandler{returnUser: user2, isAuthenticated: false, issuerURL: "https://issuer2"}
+
+			authUID := uuid.NewUUID()
+			unionHandler.registerHandler(issuer1URL, "1", &authenticatorInfo{
+				Token: handler1,
+				name:  "1",
+				uid:   authUID,
+			})
+			unionHandler.registerHandler("https://issuer2", "2", &authenticatorInfo{
+				Token: handler2,
+				name:  "2",
+				uid:   uuid.NewUUID(),
+			})
+
+			claims := map[string]interface{}{
+				"iss":    issuer1URL,
+				"claim1": "value1",
+				"claim2": 2,
+				"claim3": []interface{}{
+					"value3",
+					3,
+				},
+			}
+
+			getIssuer1AuthenticatorInfo := func() *authenticatorInfo {
+				unionHandler.mutex.Lock()
+				defer unionHandler.mutex.Unlock()
+				return unionHandler.issuerHandlers[issuer1URL]["1"]
+			}
+
+			It("Authentication should succeed and extra claims be empty", func() {
+				getIssuer1AuthenticatorInfo().extraClaims = []string{}
+
+				token, err := sign(claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				resp, isAuthenticated, err := unionHandler.AuthenticateToken(context.Background(), token)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isAuthenticated).To(BeTrue())
+				expectedUser := *user1
+				expectedUser.Extra = map[string][]string{
+					"gardener.cloud/authenticator/name": {"1"},
+					"gardener.cloud/authenticator/uid":  {string(authUID)},
+				}
+				Expect(resp.User).To(Equal(&expectedUser))
+			})
+
+			It("Authentication should succeed and all extra claims are available", func() {
+				getIssuer1AuthenticatorInfo().extraClaims = []string{"claim1", "claim2", "claim3"}
+
+				token, err := sign(claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				resp, isAuthenticated, err := unionHandler.AuthenticateToken(context.Background(), token)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isAuthenticated).To(BeTrue())
+				expectedUser := *user1
+				expectedUser.Extra = map[string][]string{
+					"gardener.cloud/authenticator/name":   {"1"},
+					"gardener.cloud/authenticator/uid":    {string(authUID)},
+					"gardener.cloud/authenticator/claim1": {"value1"},
+					"gardener.cloud/authenticator/claim2": {"2"},
+					"gardener.cloud/authenticator/claim3": {"[\"value3\",3]"},
+				}
+				Expect(resp.User).To(Equal(&expectedUser))
+			})
+
+			It("Authentication should succeed and subset of extra claims are available", func() {
+				getIssuer1AuthenticatorInfo().extraClaims = []string{"claim1", "claim2"}
+
+				token, err := sign(claims)
+				Expect(err).NotTo(HaveOccurred())
+
+				resp, isAuthenticated, err := unionHandler.AuthenticateToken(context.Background(), token)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isAuthenticated).To(BeTrue())
+				expectedUser := *user1
+				expectedUser.Extra = map[string][]string{
+					"gardener.cloud/authenticator/name":   {"1"},
+					"gardener.cloud/authenticator/uid":    {string(authUID)},
+					"gardener.cloud/authenticator/claim1": {"value1"},
+					"gardener.cloud/authenticator/claim2": {"2"},
+				}
+				Expect(resp.User).To(Equal(&expectedUser))
+			})
+
+			It("Authentication should fail on wrong extra claims", func() {
+				getIssuer1AuthenticatorInfo().extraClaims = []string{"claim1", "claim4"}
+
+				token, err := sign(claims)
+
+				resp, isAuthenticated, err := unionHandler.AuthenticateToken(context.Background(), token)
+				Expect(isAuthenticated).To(BeFalse())
+				Expect(resp).To(BeNil())
+				Expect(err).To(BeNil())
+			})
+		})
+
 	})
 
 	Describe("Use a mocked identity provider", func() {

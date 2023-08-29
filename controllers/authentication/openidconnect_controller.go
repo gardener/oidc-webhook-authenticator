@@ -161,11 +161,17 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return reconcile.Result{}, err
 	}
 
+	extraClaims := []string{}
+	if config.Spec.ExtraClaims != nil {
+		extraClaims = strings.Split(*config.Spec.ExtraClaims, ",")
+	}
+
 	r.registerHandler(config.Spec.IssuerURL, req.Name, &authenticatorInfo{
 		Token:                   auth,
 		name:                    req.Name,
 		uid:                     config.UID,
 		maxTokenValiditySeconds: config.Spec.MaxTokenExpirationSeconds,
+		extraClaims:             extraClaims,
 	})
 
 	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil
@@ -262,13 +268,25 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 				}
 			}
 
+			extra := map[string][]string{
+				"gardener.cloud/authenticator/name": {h.name},
+				"gardener.cloud/authenticator/uid":  {string(h.uid)},
+			}
+
+			extraClaims, err := extractClaims(token, h.extraClaims)
+			if err != nil {
+				u.log.V(10).Info("Loading extra claims failed", "error", err)
+				return nil, false, nil
+			}
+
+			for key, val := range extraClaims {
+				extra["gardener.cloud/authenticator/"+key] = val
+			}
+
 			info := &authenticator.Response{
 				User: &user.DefaultInfo{
-					Name: userName,
-					Extra: map[string][]string{
-						"gardener.cloud/authenticator/name": {h.name},
-						"gardener.cloud/authenticator/uid":  {string(h.uid)},
-					},
+					Name:   userName,
+					Extra:  extra,
 					Groups: filteredGroups,
 					UID:    resp.User.GetUID(),
 				},
@@ -322,6 +340,7 @@ type authenticatorInfo struct {
 	name                    string
 	uid                     types.UID
 	maxTokenValiditySeconds *int64
+	extraClaims             []string
 }
 
 type providerJSON struct {
