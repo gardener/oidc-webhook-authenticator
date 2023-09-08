@@ -175,24 +175,20 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 
 	oidc := &authenticationv1alpha1.OpenIDConnect{}
 
-	defaultingWebhook := admission.DefaultingWebhookFor(oidc)
-	if err := defaultingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Mutating")); err != nil {
-		return nil, err
-	}
-	if err := defaultingWebhook.InjectScheme(scheme); err != nil {
-		return nil, err
+	mutatingLogger := ctrl.Log.WithName("webhooks").WithName("Mutating")
+	defaultingWebhook := admission.DefaultingWebhookFor(scheme, oidc)
+	defaultingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
+		return mutatingLogger
 	}
 
 	defaultingHandler := withAuthz(defaultingWebhook, opts)
 	defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingHandler)
 	pathRecorder.Handle(defaultingPath, defaultingHandler)
 
-	validatingWebhook := admission.ValidatingWebhookFor(oidc)
-	if err := validatingWebhook.InjectLogger(ctrl.Log.WithName("webhooks").WithName("Validating")); err != nil {
-		return nil, err
-	}
-	if err := validatingWebhook.InjectScheme(scheme); err != nil {
-		return nil, err
+	validatingLogger := ctrl.Log.WithName("webhooks").WithName("Validating")
+	validatingWebhook := admission.ValidatingWebhookFor(scheme, oidc)
+	validatingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
+		return validatingLogger
 	}
 
 	validatingHandler := withAuthz(validatingWebhook, opts)
@@ -209,7 +205,7 @@ func withAuthz(handler http.Handler, opts *options.Config) http.Handler {
 	)
 
 	handler = genericapifilters.WithAuthorization(handler, opts.Authorization.Authorizer, clientgoscheme.Codecs)
-	handler = genericapifilters.WithAuthentication(handler, opts.Authentication.Authenticator, failedHandler, opts.Authentication.APIAudiences)
+	handler = genericapifilters.WithAuthentication(handler, opts.Authentication.Authenticator, failedHandler, opts.Authentication.APIAudiences, nil)
 	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
 	handler = genericapifilters.WithCacheControl(handler)
 	handler = genericfilters.WithPanicRecovery(handler, requestInfoResolver)
