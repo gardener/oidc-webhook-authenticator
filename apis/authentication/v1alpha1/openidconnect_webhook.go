@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	certutil "k8s.io/client-go/util/cert"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 var (
@@ -61,24 +62,24 @@ func (r *OpenIDConnect) Default() {
 // +kubebuilder:webhook:verbs=create;update,path=/webhooks/validating,mutating=false,failurePolicy=fail,sideEffects=None,groups=authentication.gardener.cloud,resources=openidconnects,versions=v1alpha1,name=oidc.authentication.gardener.cloud,admissionReviewVersions={v1,v1beta1}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *OpenIDConnect) ValidateCreate() error {
+func (r *OpenIDConnect) ValidateCreate() (admission.Warnings, error) {
 	openidconnectlog.Info("validate create", "name", r.Name)
 
-	return r.validate().ToAggregate()
+	return nil, r.validate().ToAggregate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *OpenIDConnect) ValidateUpdate(old runtime.Object) error {
+func (r *OpenIDConnect) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	openidconnectlog.Info("validate update", "name", r.Name)
 
-	return r.validate().ToAggregate()
+	return nil, r.validate().ToAggregate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *OpenIDConnect) ValidateDelete() error {
+func (r *OpenIDConnect) ValidateDelete() (admission.Warnings, error) {
 	openidconnectlog.Info("validate delete", "name", r.Name)
 
-	return nil
+	return nil, nil
 }
 
 func (r *OpenIDConnect) validate() field.ErrorList {

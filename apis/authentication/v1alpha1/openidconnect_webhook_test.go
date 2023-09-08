@@ -70,9 +70,10 @@ var _ = Describe("OpenidconnectWebhook", func() {
 
 		It("should return error if issuer url is not starting with https", func() {
 			oidc.Spec.IssuerURL = "http://notsecure.com"
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("issuerURL: Invalid value: \"http://notsecure.com\": must start with https"))
+			Expect(warnings).To(BeNil())
 		})
 
 		It("should return error for supported signing algorithms that are not allowed", func() {
@@ -81,39 +82,44 @@ var _ = Describe("OpenidconnectWebhook", func() {
 				"deprecated1",
 				"deprecated2",
 			}
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("[supportedSigningAlgs[1]: Invalid value: \"deprecated1\": unsupported signing alg, supportedSigningAlgs[2]: Invalid value: \"deprecated2\": unsupported signing alg]"))
+			Expect(warnings).To(BeNil())
 		})
 
 		It("should return error for invalid ca bundle", func() {
 			oidc.Spec.CABundle = []byte("dGVzdA==")
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("caBundle: Invalid value: \"dGVzdA==\": must be a valid base64 encoded certificate bundle"))
+			Expect(warnings).To(BeNil())
 		})
 
 		It("should return error for invalid jwks", func() {
 			oidc.Spec.JWKS.Keys = []byte("dGVzdA==")
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("keys: Invalid value: \"dGVzdA==\": must be a valid base64 encoded JWKS"))
+			Expect(warnings).To(BeNil())
 		})
 
 		It("should return error for empty clientID", func() {
 			oidc.Spec.ClientID = ""
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("clientID: Invalid value: \"\": must not be empty"))
+			Expect(warnings).To(BeNil())
 		})
 
 		DescribeTable("should not allow username prefix to start with 'system:'",
 			func(maliciousPrefix string) {
 				errMessageTemplate := "usernamePrefix: Invalid value: \"%s\": must not start with system:"
 				oidc.Spec.UsernamePrefix = &maliciousPrefix
-				err := oidc.ValidateCreate()
+				warnings, err := oidc.ValidateCreate()
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("exact match", systemPrefix),
@@ -123,8 +129,9 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		DescribeTable("should allow username prefix if it does not start with 'system:'",
 			func(validPrefix string) {
 				oidc.Spec.UsernamePrefix = &validPrefix
-				err := oidc.ValidateCreate()
+				warnings, err := oidc.ValidateCreate()
 				Expect(err).NotTo(HaveOccurred())
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
@@ -138,9 +145,10 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			func(maliciousPrefix string) {
 				errMessageTemplate := "groupsPrefix: Invalid value: \"%s\": must not start with system:"
 				oidc.Spec.GroupsPrefix = &maliciousPrefix
-				err := oidc.ValidateCreate()
+				warnings, err := oidc.ValidateCreate()
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("exact match", systemPrefix),
@@ -150,8 +158,9 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		DescribeTable("should allow groups prefix if it does not start with 'system:'",
 			func(validPrefix string) {
 				oidc.Spec.GroupsPrefix = &validPrefix
-				err := oidc.ValidateCreate()
+				warnings, err := oidc.ValidateCreate()
 				Expect(err).NotTo(HaveOccurred())
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
@@ -175,8 +184,9 @@ var _ = Describe("OpenidconnectWebhook", func() {
 					ClientID:  "some-id",
 				},
 			}
-			err := newObj.ValidateUpdate(&oidc)
+			warnings, err := newObj.ValidateUpdate(&oidc)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
 		})
 
 		It("should return error if new oidc object is not valid", func() {
@@ -186,9 +196,10 @@ var _ = Describe("OpenidconnectWebhook", func() {
 					ClientID:  "some-id",
 				},
 			}
-			err := newObj.ValidateUpdate(&oidc)
+			warnings, err := newObj.ValidateUpdate(&oidc)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("issuerURL: Invalid value: \"http://notsecure.com\": must start with https"))
+			Expect(warnings).To(BeNil())
 		})
 
 		DescribeTable("should not allow username prefix to start with 'system:'",
@@ -201,9 +212,10 @@ var _ = Describe("OpenidconnectWebhook", func() {
 						UsernamePrefix: &maliciousPrefix,
 					},
 				}
-				err := newObj.ValidateUpdate(&oidc)
+				warnings, err := newObj.ValidateUpdate(&oidc)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("exact match", systemPrefix),
@@ -219,8 +231,9 @@ var _ = Describe("OpenidconnectWebhook", func() {
 						UsernamePrefix: &validPrefix,
 					},
 				}
-				err := newObj.ValidateUpdate(&oidc)
+				warnings, err := newObj.ValidateUpdate(&oidc)
 				Expect(err).NotTo(HaveOccurred())
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
@@ -240,9 +253,10 @@ var _ = Describe("OpenidconnectWebhook", func() {
 						GroupsPrefix: &maliciousPrefix,
 					},
 				}
-				err := newObj.ValidateUpdate(&oidc)
+				warnings, err := newObj.ValidateUpdate(&oidc)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal(fmt.Sprintf(errMessageTemplate, maliciousPrefix)))
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("exact match", systemPrefix),
@@ -258,8 +272,9 @@ var _ = Describe("OpenidconnectWebhook", func() {
 						GroupsPrefix: &validPrefix,
 					},
 				}
-				err := newObj.ValidateUpdate(&oidc)
+				warnings, err := newObj.ValidateUpdate(&oidc)
 				Expect(err).NotTo(HaveOccurred())
+				Expect(warnings).To(BeNil())
 			},
 
 			Entry("valid prefix ending with system:", "pref-"+systemPrefix),
@@ -271,16 +286,18 @@ var _ = Describe("OpenidconnectWebhook", func() {
 
 		It("should return error for negative maxTokenExpirationSeconds", func() {
 			oidc.Spec.MaxTokenExpirationSeconds = pointer.Int64(-1)
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: -1: should be positive"))
+			Expect(warnings).To(BeNil())
 		})
 
 		It("should return error for zero maxTokenExpirationSeconds", func() {
 			oidc.Spec.MaxTokenExpirationSeconds = pointer.Int64(0)
-			err := oidc.ValidateCreate()
+			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: 0: should be positive"))
+			Expect(warnings).To(BeNil())
 		})
 	})
 })
