@@ -66,6 +66,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 			return reconcile.Result{}, nil
 		}
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, err
 	}
 
 	if config.DeletionTimestamp != nil {
