@@ -33,6 +33,7 @@ runtime:
     repository: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
     tag: latest
     pullPolicy: IfNotPresent
+  imagePullSecrets: []
 
   autoscaling:
     hpa:
