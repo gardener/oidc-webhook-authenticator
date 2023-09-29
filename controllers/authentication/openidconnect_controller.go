@@ -271,7 +271,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 			extraClaims, err := extractClaims(token, h.extraClaims)
 			if err != nil {
 				u.log.V(10).Info("Loading extra claims failed", "error", err)
-				return nil, false, nil
+				continue
 			}
 
 			for key, val := range extraClaims {
