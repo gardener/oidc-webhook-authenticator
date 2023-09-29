@@ -275,7 +275,7 @@ func (u *unionAuthTokenHandler) AuthenticateToken(ctx context.Context, token str
 			}
 
 			for key, val := range extraClaims {
-				extra["gardener.cloud/authenticator/"+key] = val
+				extra["gardener.cloud/user/"+strings.ToLower(key)] = val
 			}
 
 			info := &authenticator.Response{

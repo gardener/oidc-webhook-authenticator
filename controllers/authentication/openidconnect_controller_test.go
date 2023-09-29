@@ -431,6 +431,10 @@ var _ = Describe("OpenIDConnect controller", func() {
 					"value3",
 					3,
 				},
+				"claim5": map[string]string{
+					"one": "two",
+				},
+				"CLAim6": "Value6",
 			}
 
 			setIssuer1ExtraClaims := func(extra []string) {
@@ -467,11 +471,13 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(isAuthenticated).To(BeTrue())
 				expectedUser := *user1
 				expectedUser.Extra = map[string][]string{
-					"gardener.cloud/authenticator/name":   {"1"},
-					"gardener.cloud/authenticator/uid":    {string(authUID)},
-					"gardener.cloud/authenticator/claim1": {"value1"},
-					"gardener.cloud/authenticator/claim2": {"2"},
-					"gardener.cloud/authenticator/claim3": {"[\"value3\",3]"},
+					"gardener.cloud/authenticator/name": {"1"},
+					"gardener.cloud/authenticator/uid":  {string(authUID)},
+					"gardener.cloud/user/claim1":        {"value1"},
+					"gardener.cloud/user/claim2":        {"2"},
+					"gardener.cloud/user/claim3":        {"[\"value3\",3]"},
+					"gardener.cloud/user/claim5":        {"{\"one\":\"two\"}"},
+					"gardener.cloud/user/claim6":        {"Value6"},
 				}
 				Expect(resp.User).To(Equal(&expectedUser))
 			})
@@ -487,10 +493,10 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(isAuthenticated).To(BeTrue())
 				expectedUser := *user1
 				expectedUser.Extra = map[string][]string{
-					"gardener.cloud/authenticator/name":   {"1"},
-					"gardener.cloud/authenticator/uid":    {string(authUID)},
-					"gardener.cloud/authenticator/claim1": {"value1"},
-					"gardener.cloud/authenticator/claim2": {"2"},
+					"gardener.cloud/authenticator/name": {"1"},
+					"gardener.cloud/authenticator/uid":  {string(authUID)},
+					"gardener.cloud/user/claim1":        {"value1"},
+					"gardener.cloud/user/claim2":        {"2"},
 				}
 				Expect(resp.User).To(Equal(&expectedUser))
 			})
