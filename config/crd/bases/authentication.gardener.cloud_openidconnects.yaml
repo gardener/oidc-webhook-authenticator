@@ -1,9 +1,9 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.13.0
   name: openidconnects.authentication.gardener.cloud
 spec:
   group: authentication.gardener.cloud
@@ -73,6 +73,12 @@ spec:
                   to issue tokens to a client for a different client. See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken"
                 minLength: 1
                 type: string
+              extraClaims:
+                description: ExtraClaims, if specified, causes the OIDCAuthenticator
+                  to copy listed claims to the user Extra field.
+                items:
+                  type: string
+                type: array
               groupsClaim:
                 description: GroupsClaim, if specified, causes the OIDCAuthenticator
                   to try to populate the user's groups with an ID Token field. If
@@ -126,10 +132,6 @@ spec:
                   to verify that all the required claims key value pairs are present
                   in the ID Token.
                 type: object
-              extraClaims:
-                description: ExtraClaims, if specified, causes the OIDCAuthenticator
-                  to copy these additional claims to the user extra field.
-                type: string
               supportedSigningAlgs:
                 default:
                 - RS256
@@ -177,9 +179,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
