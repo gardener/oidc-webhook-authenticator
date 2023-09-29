@@ -13,27 +13,26 @@ import (
 )
 
 func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, error) {
-	extra := make(map[string][]string)
-
 	if len(extraClaims) == 0 {
-		return extra, nil
+		return nil, nil
 	}
 
 	token, err := jwt.ParseSigned(tokenStr)
 	if err != nil {
-		return extra, errors.New("cannot parse jwt token")
+		return nil, errors.New("cannot parse jwt token")
 	}
 
 	var claims map[string]interface{}
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	if err != nil {
-		return extra, errors.New("cannot parse claims")
+		return nil, errors.New("cannot parse claims")
 	}
 
+	extra := make(map[string][]string)
 	for _, claim := range extraClaims {
 		value, ok := claims[claim]
 		if !ok {
-			return extra, fmt.Errorf("%s claim not found", claim)
+			return nil, fmt.Errorf("%s claim not found", claim)
 		}
 
 		if valueStr, ok := value.(string); ok {
@@ -41,7 +40,7 @@ func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, 
 		} else {
 			data, err := json.Marshal(value)
 			if err != nil {
-				return extra, err
+				return nil, err
 			}
 			extra[claim] = []string{string(data)}
 		}
