@@ -1686,6 +1686,48 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
+
+		It("Should authenticate token with extra claims", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			userPrefix := "usr:"
+			groupsPrefix := "gr:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &userPrefix
+			provider.Spec.GroupsPrefix = &groupsPrefix
+			provider.Spec.ExtraClaims = []string{"claim1", "claim2"}
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			user := "this-is-my-identity"
+			claims := defaultClaims()
+			claims["sub"] = user
+			claims["groups"] = []string{"admin", "employee"}
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+			claims["claim1"] = "test1"
+			claims["claim2"] = "test2"
+
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+
+			Expect(review.Status.Authenticated).To(BeTrue())
+			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
+
+			extraClaims := map[string]authenticationv1.ExtraValue{
+				"gardener.cloud/user/claim1": authenticationv1.ExtraValue{"test1"},
+				"gardener.cloud/user/claim2": authenticationv1.ExtraValue{"test2"},
+			}
+
+			for key, value := range extraClaims {
+				Expect(review.Status.User.Extra).To(HaveKeyWithValue(key, value))
+			}
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
 	})
 })
 
