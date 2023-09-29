@@ -499,12 +499,14 @@ var _ = Describe("OpenIDConnect controller", func() {
 				setIssuer1ExtraClaims([]string{"claim1", "claim4"})
 
 				token, err := sign(claims)
+				Expect(err).NotTo(HaveOccurred())
 
 				resp, isAuthenticated, err := unionHandler.AuthenticateToken(context.Background(), token)
 				Expect(isAuthenticated).To(BeFalse())
 				Expect(resp).To(BeNil())
 				Expect(err).To(BeNil())
 			})
+
 		})
 
 	})
