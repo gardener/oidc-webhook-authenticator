@@ -161,17 +161,12 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return reconcile.Result{}, err
 	}
 
-	extraClaims := []string{}
-	if config.Spec.ExtraClaims != nil {
-		extraClaims = strings.Split(*config.Spec.ExtraClaims, ",")
-	}
-
 	r.registerHandler(config.Spec.IssuerURL, req.Name, &authenticatorInfo{
 		Token:                   auth,
 		name:                    req.Name,
 		uid:                     config.UID,
 		maxTokenValiditySeconds: config.Spec.MaxTokenExpirationSeconds,
-		extraClaims:             extraClaims,
+		extraClaims:             config.Spec.ExtraClaims,
 	})
 
 	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil

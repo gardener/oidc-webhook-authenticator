@@ -116,9 +116,9 @@ type OIDCAuthenticationSpec struct {
 
 	// +optional
 
-	// ExtraClaims, if specified, causes the OIDCAuthenticator to copy list claims to the
+	// ExtraClaims, if specified, causes the OIDCAuthenticator to copy listed claims to the
 	// user Extra field.
-	ExtraClaims *string `json:"extraClaims,omitempty"`
+	ExtraClaims []string `json:"extraClaims,omitempty"`
 
 	// +optional
 

@@ -433,14 +433,14 @@ var _ = Describe("OpenIDConnect controller", func() {
 				},
 			}
 
-			getIssuer1AuthenticatorInfo := func() *authenticatorInfo {
+			setIssuer1ExtraClaims := func(extra []string) {
 				unionHandler.mutex.Lock()
 				defer unionHandler.mutex.Unlock()
-				return unionHandler.issuerHandlers[issuer1URL]["1"]
+				unionHandler.issuerHandlers[issuer1URL]["1"].extraClaims = extra
 			}
 
 			It("Authentication should succeed and extra claims be empty", func() {
-				getIssuer1AuthenticatorInfo().extraClaims = []string{}
+				setIssuer1ExtraClaims([]string{})
 
 				token, err := sign(claims)
 				Expect(err).NotTo(HaveOccurred())
@@ -457,7 +457,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			})
 
 			It("Authentication should succeed and all extra claims are available", func() {
-				getIssuer1AuthenticatorInfo().extraClaims = []string{"claim1", "claim2", "claim3"}
+				setIssuer1ExtraClaims([]string{"claim1", "claim2", "claim3", "claim5", "CLAim6"})
 
 				token, err := sign(claims)
 				Expect(err).NotTo(HaveOccurred())
@@ -477,7 +477,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			})
 
 			It("Authentication should succeed and subset of extra claims are available", func() {
-				getIssuer1AuthenticatorInfo().extraClaims = []string{"claim1", "claim2"}
+				setIssuer1ExtraClaims([]string{"claim1", "claim2"})
 
 				token, err := sign(claims)
 				Expect(err).NotTo(HaveOccurred())
@@ -496,7 +496,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			})
 
 			It("Authentication should fail on wrong extra claims", func() {
-				getIssuer1AuthenticatorInfo().extraClaims = []string{"claim1", "claim4"}
+				setIssuer1ExtraClaims([]string{"claim1", "claim4"})
 
 				token, err := sign(claims)
 
