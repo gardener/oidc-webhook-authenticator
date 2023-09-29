@@ -60,15 +60,17 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	err := r.Get(ctx, req.NamespacedName, config)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
+			log.Info("not found - removing OIDC authenticator handler from store")
 
 			r.deleteHandler(req.Name)
 
 			return reconcile.Result{}, nil
 		}
+		return reconcile.Result{}, err
 	}
 
 	if config.DeletionTimestamp != nil {
-		log.Info("Deletion timestamp present - removing OIDC authenticator")
+		log.Info("deletion timestamp present - removing OIDC authenticator handler from store")
 
 		r.deleteHandler(req.Name)
 
