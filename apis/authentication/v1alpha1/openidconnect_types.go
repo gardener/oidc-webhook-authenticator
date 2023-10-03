@@ -118,6 +118,8 @@ type OIDCAuthenticationSpec struct {
 
 	// ExtraClaims, if specified, causes the OIDCAuthenticator to copy listed claims to the
 	// user Extra field.
+	// Claims will be converted to lower case and prefixed with "gardener.cloud/user/" before being copied.
+	// If any of the extra claims is not present in the token then the token will be rejected.
 	ExtraClaims []string `json:"extraClaims,omitempty"`
 
 	// +optional

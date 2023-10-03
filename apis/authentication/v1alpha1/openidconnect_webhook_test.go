@@ -299,5 +299,13 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: 0: should be positive"))
 			Expect(warnings).To(BeNil())
 		})
+
+		It("should return error for duplicate claims in ExtraClaims", func() {
+			oidc.Spec.ExtraClaims = []string{"claim1", "claim2", "ClaIm1"}
+			warnings, err := oidc.ValidateCreate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("extraClaims: Invalid value: []string{\"claim1\", \"claim2\", \"ClaIm1\"}: duplicated claims found"))
+			Expect(warnings).To(BeNil())
+		})
 	})
 })

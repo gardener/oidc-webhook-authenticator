@@ -128,6 +128,18 @@ func (r *OpenIDConnect) validate() field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("maxTokenExpirationSeconds"), *r.Spec.MaxTokenExpirationSeconds, "should be positive"))
 	}
 
+	if len(r.Spec.ExtraClaims) > 0 {
+		claims := map[string]struct{}{}
+		for _, claim := range r.Spec.ExtraClaims {
+			lowered := strings.ToLower(claim)
+			if _, ok := claims[lowered]; ok {
+				allErrs = append(allErrs, field.Invalid(field.NewPath("extraClaims"), r.Spec.ExtraClaims, "duplicated claims found"))
+				break
+			}
+			claims[lowered] = struct{}{}
+		}
+	}
+
 	return allErrs
 }
 
