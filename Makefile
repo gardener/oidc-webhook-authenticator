@@ -54,7 +54,7 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 start-dev-container: tools-image ## Run go vet against code.
-	docker run --rm --name=odic-dev-container -v $(shell pwd):/workspace --workdir /workspace /bin/bash
+	docker run --rm --tty --interactive --name=odic-dev-container -v $(shell pwd):/workspace --workdir /workspace tools:latest /bin/bash
 
 build: generate fmt vet ## Build manager binary.
 	GOARCH=$(GOARCH) go build -o bin/oidc-webhook-authenticator ./cmd/oidc-webhook-authenticator/authenticator.go

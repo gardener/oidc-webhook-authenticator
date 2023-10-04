@@ -9,7 +9,7 @@ FROM golang:1.21.1 AS tools
 COPY --from=kube-apiserver /usr/local/bin/kube-apiserver /testbin/kube-apiserver
 COPY --from=etcd /usr/local/bin/etcd /testbin/etcd
 
-RUN mkdir /tools && cd /tools && go mod init tmp && go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0
+RUN mkdir /tools && cd /tools && go mod init tmp && go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.13.0
 ENV KUBEBUILDER_ASSETS=/testbin
 ENV CGO_ENABLED=0
 ENV GOOS=linux

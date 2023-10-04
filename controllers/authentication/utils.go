@@ -5,10 +5,49 @@
 package authentication
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 
-	"gopkg.in/square/go-jose.v2/jwt"
+	jwt "gopkg.in/square/go-jose.v2/jwt"
 )
+
+func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, error) {
+	if len(extraClaims) == 0 {
+		return nil, nil
+	}
+
+	token, err := jwt.ParseSigned(tokenStr)
+	if err != nil {
+		return nil, errors.New("cannot parse jwt token")
+	}
+
+	var claims map[string]interface{}
+	err = token.UnsafeClaimsWithoutVerification(&claims)
+	if err != nil {
+		return nil, errors.New("cannot parse claims")
+	}
+
+	extra := make(map[string][]string)
+	for _, claim := range extraClaims {
+		value, ok := claims[claim]
+		if !ok {
+			return nil, fmt.Errorf("%s claim not found", claim)
+		}
+
+		if valueStr, ok := value.(string); ok {
+			extra[claim] = []string{valueStr}
+		} else {
+			data, err := json.Marshal(value)
+			if err != nil {
+				return nil, err
+			}
+			extra[claim] = []string{string(data)}
+		}
+	}
+
+	return extra, nil
+}
 
 func getIssuerURL(token string) (string, error) {
 	var claims map[string]interface{}

@@ -116,6 +116,14 @@ type OIDCAuthenticationSpec struct {
 
 	// +optional
 
+	// ExtraClaims, if specified, causes the OIDCAuthenticator to copy listed claims to the
+	// user Extra field.
+	// Claims will be converted to lower case and prefixed with "gardener.cloud/user/" before being copied.
+	// If any of the extra claims is not present in the token then the token will be rejected.
+	ExtraClaims []string `json:"extraClaims,omitempty"`
+
+	// +optional
+
 	// CABundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate.
 	// If unspecified, system's trusted certificates are used.
 	CABundle []byte `json:"caBundle,omitempty"`
