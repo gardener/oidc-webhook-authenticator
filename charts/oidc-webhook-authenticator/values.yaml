@@ -5,6 +5,8 @@
 global:
   certManager:
     enabled: false
+    generateClientCertificate: true
+    clientCertificateDuration: 2160h # 90d
 
 application:
   enabled: true

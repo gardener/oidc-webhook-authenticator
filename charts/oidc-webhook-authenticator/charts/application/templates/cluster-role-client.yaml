@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2023 Idiap Research Institute
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if and .Values.global.certManager.enabled .Values.global.certManager.generateClientCertificate }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}-client
+  labels:
+    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+rules:
+- nonResourceURLs:
+  - /validate-token
+  verbs:
+  - post
+{{- end}}

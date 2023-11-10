@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2023 Idiap Research Institute
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Certificate to be configured in webhook config as client authentication
+
+{{- if and .Values.global.certManager.enabled .Values.global.certManager.generateClientCertificate }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+spec:
+  commonName: {{ include "oidc-webhook-authenticator.name" . }}-client
+  issuerRef:
+    kind: Issuer
+    name: {{ include "oidc-webhook-authenticator.name" . }}-issuer
+  secretName: oidc-webhook-client
+  duration: {{ .Values.webhookConfig.clientCertificateDuration }}
+  usages:
+  - client auth
+{{- end }}

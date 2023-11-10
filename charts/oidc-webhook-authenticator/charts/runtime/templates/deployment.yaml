@@ -76,6 +76,9 @@ spec:
         args:
         - --tls-cert-file=/var/run/oidc-webhook-authenticator/tls/tls.crt
         - --tls-private-key-file=/var/run/oidc-webhook-authenticator/tls/tls.key
+        {{- if and .Values.global.certManager.enabled .Values.global.certManager.generateClientCertificate }}
+        - --client-ca-file=/var/run/oidc-webhook-authenticator/tls/ca.crt
+        {{- end}}
         {{- if .Values.kubeconfig }}
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
