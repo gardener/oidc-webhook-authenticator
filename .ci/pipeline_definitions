@@ -7,6 +7,8 @@ oidc-webhook-authenticator:
     traits:
       version:
         preprocess: inject-commit-hash
+      component_descriptor:
+        ocm_repository: europe-docker.pkg.dev/gardener-project/snapshots
       publish:
         oci-builder: docker-buildx
         platforms:
@@ -14,14 +16,16 @@ oidc-webhook-authenticator:
         - linux/arm64
         dockerimages:
           oidc-webhook-authenticator:
-            image: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
+            image: europe-docker.pkg.dev/gardener-project/snapshots/gardener/oidc-webhook-authenticator
             dockerfile: Dockerfile
             tag_template: ${EFFECTIVE_VERSION}
             tag_as_latest: false
   jobs:
     head-update:
       traits:
-        component_descriptor: ~
+        component_descriptor:
+          ocm_repository_mappings:
+            - repository: europe-docker.pkg.dev/gardener-project/releases
         draft_release: ~
         publish:
           dockerimages:
@@ -30,11 +34,12 @@ oidc-webhook-authenticator:
     pull-request:
       traits:
         pull-request: ~
-        component_descriptor: ~
     release:
       traits:
         version:
           preprocess: finalize
+        component_descriptor:
+          ocm_repository: europe-docker.pkg.dev/gardener-project/releases
         release:
           nextversion: bump_minor
         slack:
@@ -43,8 +48,8 @@ oidc-webhook-authenticator:
             internal_scp_workspace:
               channel_name: 'C9CEBQPGE' #sap-tech-gardener
               slack_cfg_name: 'scp_workspace'
-        component_descriptor: ~
         publish:
           dockerimages:
             oidc-webhook-authenticator:
+              image: europe-docker.pkg.dev/gardener-project/releases/gardener/oidc-webhook-authenticator
               tag_as_latest: false
