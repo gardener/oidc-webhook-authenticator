@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 oidc-webhook-authenticator:
-  template: default
   base_definition:
-    repo: ~
     traits:
       version:
         preprocess: inject-commit-hash
@@ -16,7 +14,6 @@ oidc-webhook-authenticator:
         - linux/arm64
         dockerimages:
           oidc-webhook-authenticator:
-            registry: gcr-readwrite
             image: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
             dockerfile: Dockerfile
             tag_template: ${EFFECTIVE_VERSION}
