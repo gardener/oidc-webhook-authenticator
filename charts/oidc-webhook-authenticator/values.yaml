@@ -30,7 +30,7 @@ runtime:
   replicaCount: 1
 
   image:
-    repository: eu.gcr.io/gardener-project/gardener/oidc-webhook-authenticator
+    repository: europe-docker.pkg.dev/gardener-project/public/gardener/oidc-webhook-authenticator
     tag: latest
     pullPolicy: IfNotPresent
   imagePullSecrets: []
