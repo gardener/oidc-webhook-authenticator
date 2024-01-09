@@ -23,7 +23,7 @@ COPY webhook/ webhook/
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GO111MODULE=on go build -a -o oidc-webhook-authenticator cmd/oidc-webhook-authenticator/authenticator.go
 
-FROM gcr.io/distroless/static-debian11:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=builder /workspace/oidc-webhook-authenticator .
 EXPOSE 10443/tcp
