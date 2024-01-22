@@ -6,9 +6,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	goflag "flag"
+	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
@@ -22,8 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
-	apirequest "k8s.io/apiserver/pkg/endpoints/request"
-	genericfilters "k8s.io/apiserver/pkg/server/filters"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/mux"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -79,7 +80,6 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 
 	fs := cmd.Flags()
 	verflag.AddFlags(fs)
-	fs.StringSliceVar((*[]string)(&conf.Authentication.APIAudiences), "api-audiences", []string{}, "Identifiers of the API. Tokens used against the API should be bound to at least one of these audiences.")
 
 	opt.AddFlags(fs)
 	globalflag.AddGlobalFlags(fs, "global")
@@ -138,9 +138,12 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		return err
 	}
 
-	if _, _, err := opts.SecureServing.Serve(handler, 0, ctx.Done()); err != nil {
-		setupLog.Error(err, "problem starting secure server")
-		return err
+	srv := &http.Server{
+		Addr:         ":10443",
+		Handler:      handler,
+		TLSConfig:    opts.AuthServerConfig.TLSConfig,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	if err := mgr.Start(ctx); err != nil {
@@ -148,7 +151,7 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		return err
 	}
 
-	return nil
+	return runServer(srv, ctx.Done())
 }
 
 func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
@@ -165,11 +168,11 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	healthz.InstallLivezHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
 
 	metricsHandler := promhttp.Handler()
-	metricsHandler = withAuthz(metricsHandler, opts)
+	metricsHandler = genericapifilters.WithCacheControl(metricsHandler)
 	pathRecorder.Handle(metricsPath, metricsHandler)
 
 	authHandler := authWH.Build()
-	authHandler = withAuthz(authHandler, opts)
+	authHandler = genericapifilters.WithCacheControl(authHandler)
 	authHandler = metrics.InstrumentedHandler(authPath, authHandler)
 	pathRecorder.Handle(authPath, authHandler)
 
@@ -181,7 +184,7 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return mutatingLogger
 	}
 
-	defaultingHandler := withAuthz(defaultingWebhook, opts)
+	defaultingHandler := genericapifilters.WithCacheControl(defaultingWebhook)
 	defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingHandler)
 	pathRecorder.Handle(defaultingPath, defaultingHandler)
 
@@ -191,24 +194,39 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return validatingLogger
 	}
 
-	validatingHandler := withAuthz(validatingWebhook, opts)
+	validatingHandler := genericapifilters.WithCacheControl(validatingWebhook)
 	validatingHandler = metrics.InstrumentedHandler(validatingPath, validatingHandler)
 	pathRecorder.Handle(validatingPath, validatingHandler)
 
 	return pathRecorder, nil
 }
 
-func withAuthz(handler http.Handler, opts *options.Config) http.Handler {
-	var (
-		failedHandler       = genericapifilters.Unauthorized(clientgoscheme.Codecs)
-		requestInfoResolver = &apirequest.RequestInfoFactory{}
-	)
+// runServer starts the webhook server. It returns if stopCh is closed or the server cannot start initially.
+func runServer(srv *http.Server, stopCh <-chan struct{}) error {
+	errCh := make(chan error)
+	l := ctrl.Log.WithName("authentication server")
+	go func(errCh chan<- error) {
+		l.Info("starts listening", "address", srv.Addr)
+		defer close(errCh)
+		if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("authentication server failed serving content: %w", err)
+		} else {
+			l.Info("server stopped listening")
+		}
+	}(errCh)
 
-	handler = genericapifilters.WithAuthorization(handler, opts.Authorization.Authorizer, clientgoscheme.Codecs)
-	handler = genericapifilters.WithAuthentication(handler, opts.Authentication.Authenticator, failedHandler, opts.Authentication.APIAudiences, nil)
-	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
-	handler = genericapifilters.WithCacheControl(handler)
-	handler = genericfilters.WithPanicRecovery(handler, requestInfoResolver)
-
-	return handler
+	select {
+	case err := <-errCh:
+		return err
+	case <-stopCh:
+		l.Info("shutting down")
+		cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		err := srv.Shutdown(cancelCtx)
+		if err != nil {
+			return fmt.Errorf("authentication server failed graceful shutdown: %w", err)
+		}
+		l.Info("shutdown successful")
+		return nil
+	}
 }
