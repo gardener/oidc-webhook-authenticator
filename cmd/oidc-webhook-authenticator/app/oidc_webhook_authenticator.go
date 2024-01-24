@@ -18,9 +18,9 @@ import (
 	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -146,12 +146,28 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 		WriteTimeout: 10 * time.Second,
 	}
 
-	if err := mgr.Start(ctx); err != nil {
-		setupLog.Error(err, "problem running manager")
-		return err
-	}
+	srvCh := make(chan error)
+	serverCtx, cancelSrv := context.WithCancel(ctx)
 
-	return runServer(srv, ctx.Done())
+	mgrCh := make(chan error)
+	mgrCtx, cancelMgr := context.WithCancel(ctx)
+
+	go func(ch chan<- error) {
+		defer cancelSrv()
+		ch <- mgr.Start(mgrCtx)
+	}(mgrCh)
+
+	go func(ch chan<- error) {
+		defer cancelMgr()
+		ch <- runServer(serverCtx, srv)
+	}(srvCh)
+
+	select {
+	case err := <-mgrCh:
+		return errors.Join(err, <-srvCh)
+	case err := <-srvCh:
+		return errors.Join(err, <-mgrCh)
+	}
 }
 
 func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *runtime.Scheme) (http.Handler, error) {
@@ -201,8 +217,8 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	return pathRecorder, nil
 }
 
-// runServer starts the webhook server. It returns if stopCh is closed or the server cannot start initially.
-func runServer(srv *http.Server, stopCh <-chan struct{}) error {
+// runServer starts the webhook server. It returns if context is canceled or the server cannot start initially.
+func runServer(ctx context.Context, srv *http.Server) error {
 	errCh := make(chan error)
 	l := ctrl.Log.WithName("authentication server")
 	go func(errCh chan<- error) {
@@ -218,7 +234,7 @@ func runServer(srv *http.Server, stopCh <-chan struct{}) error {
 	select {
 	case err := <-errCh:
 		return err
-	case <-stopCh:
+	case <-ctx.Done():
 		l.Info("shutting down")
 		cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
