@@ -113,8 +113,6 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 		"--v=2",
 		"--tls-cert-file="+filepath.Join(s.CertDir, "tls.crt"),
 		"--tls-private-key-file="+filepath.Join(s.CertDir, "tls.key"),
-		"--authentication-kubeconfig="+kubeconfigFile,
-		"--authorization-kubeconfig="+kubeconfigFile,
 		"--kubeconfig="+kubeconfigFile,
 	)
 

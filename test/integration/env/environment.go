@@ -94,20 +94,12 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 	authKubeconfigPath := filepath.Join(e.certDir, "auth-webhook.yaml")
 	kubeAPIServer.Configure().Set("authentication-token-webhook-cache-ttl", "0s")
 	kubeAPIServer.Configure().Set("authentication-token-webhook-config-file", authKubeconfigPath)
-	authKubeconfig, err := prepareKubeconfig("https://localhost:10443/validate-token", e.oidcWebhookServer.CaCert.CertificatePEM, configv1.AuthInfo{
-		TokenFile: filepath.Join(e.certDir, "kube-apiserver-token"),
-	})
+	authKubeconfig, err := prepareKubeconfig("https://localhost:10443/validate-token", e.oidcWebhookServer.CaCert.CertificatePEM, configv1.AuthInfo{})
 	if err != nil {
 		return nil, err
 	}
 
 	err = os.WriteFile(authKubeconfigPath, authKubeconfig, 0640)
-	if err != nil {
-		return nil, err
-	}
-
-	// write something to the token file so that the controlplane can start
-	err = os.WriteFile(filepath.Join(e.certDir, "kube-apiserver-token"), []byte("Hello!"), 0640)
 	if err != nil {
 		return nil, err
 	}
@@ -125,15 +117,6 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 	}
 
 	ctx := context.Background()
-	kubeApiserverToken, err := setupKubeApiserverRbacAndReturnToken(ctx, clientset)
-	if err != nil {
-		return nil, err
-	}
-
-	err = os.WriteFile(filepath.Join(e.certDir, "kube-apiserver-token"), []byte(kubeApiserverToken), 0640)
-	if err != nil {
-		return nil, err
-	}
 
 	token, err := setupOIDCRbacAndReturnServiceAccountToken(ctx, clientset)
 	if err != nil {
@@ -188,64 +171,6 @@ func (e *OIDCWebhookTestEnvironment) OIDCServerCA() []byte {
 	return e.oidcWebhookServer.CaCert.CertificatePEM
 }
 
-func setupKubeApiserverRbacAndReturnToken(ctx context.Context, c *kubernetes.Clientset) (string, error) {
-	svca := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "kube-apiserver",
-		},
-	}
-	_, err := c.CoreV1().ServiceAccounts("default").Create(ctx, svca, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	rbacName := "token-validator"
-	_, err = c.RbacV1().ClusterRoles().Create(ctx, &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: rbacName,
-		},
-		Rules: []rbacv1.PolicyRule{{
-			Verbs:           []string{"post"},
-			NonResourceURLs: []string{"/validate-token"},
-		}},
-	}, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	_, err = c.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: rbacName,
-		},
-		Subjects: []rbacv1.Subject{{
-			Name:      "kube-apiserver",
-			Namespace: "default",
-			Kind:      "ServiceAccount",
-		}},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     rbacName,
-		},
-	}, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	ttl := int64((30 * time.Minute).Seconds())
-	resp, err := c.CoreV1().ServiceAccounts("default").CreateToken(ctx, "kube-apiserver", &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			ExpirationSeconds: &ttl,
-		},
-	}, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	return resp.Status.Token, nil
-}
-
 func setupOIDCRbacAndReturnServiceAccountToken(ctx context.Context, c *kubernetes.Clientset) (string, error) {
 	svca := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -294,53 +219,6 @@ func setupOIDCRbacAndReturnServiceAccountToken(ctx context.Context, c *kubernete
 		},
 	}
 	_, err = c.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	roleBinding := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "oidc-webhook-authenticator",
-			Namespace: "kube-system",
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "Role",
-			Name:     "extension-apiserver-authentication-reader",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      "oidc-webhook-authenticator",
-				Namespace: "default",
-			},
-		},
-	}
-
-	_, err = c.RbacV1().RoleBindings("kube-system").Create(ctx, roleBinding, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	clusterRoleBindingAuthDelegator := &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "oidc-webhook-authenticator-auth-delegator",
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     "system:auth-delegator",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				APIGroup:  "",
-				Kind:      "ServiceAccount",
-				Namespace: "default",
-				Name:      "oidc-webhook-authenticator",
-			},
-		},
-	}
-	_, err = c.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBindingAuthDelegator, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}

@@ -114,16 +114,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	ttl := int64((30 * time.Minute).Seconds())
-	resp, err := clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "kube-apiserver", &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			ExpirationSeconds: &ttl,
-		},
-	}, metav1.CreateOptions{})
-
-	Expect(err).NotTo(HaveOccurred())
-
-	apiserverToken = resp.Status.Token
-
 	defaultServiceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
@@ -133,7 +123,7 @@ var _ = BeforeSuite(func() {
 	_, err = clientset.CoreV1().ServiceAccounts("default").Create(ctx, defaultServiceAccount, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
-	resp, err = clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "default", &authenticationv1.TokenRequest{
+	resp, err := clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "default", &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{
 			ExpirationSeconds: &ttl,
 		},
