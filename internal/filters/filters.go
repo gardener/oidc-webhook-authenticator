@@ -39,6 +39,7 @@ func WithAllowedMethod(method string, next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(405)
 			w.Write([]byte(`{"code":405,"message":"method not allowed"}`))
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
