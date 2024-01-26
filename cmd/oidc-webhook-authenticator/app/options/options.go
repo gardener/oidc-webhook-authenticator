@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 )
 
 // Options contain the server options.
@@ -22,14 +23,18 @@ type Options struct {
 
 // ServingOptions are options applied to the authentication webhook server.
 type ServingOptions struct {
-	TLSCertFile string
-	TLSKeyFile  string
+	TLSCertFile             string
+	TLSKeyFile              string
+	ClientCAFile            string
+	SkipAuthenticationPaths []string
 }
 
 // AddFlags adds server options to flagset
 func (s *ServingOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TLSCertFile, "tls-cert-file", s.TLSCertFile, "File containing the x509 Certificate for HTTPS.")
 	fs.StringVar(&s.TLSKeyFile, "tls-private-key-file", s.TLSKeyFile, "File containing the x509 private key matching --tls-cert-file.")
+	fs.StringVar(&s.ClientCAFile, "client-ca-file", s.ClientCAFile, "If set, any request should present a client certificate signed by one of the authorities in the client-ca-file.")
+	fs.StringArrayVar(&s.SkipAuthenticationPaths, "authentication-skip-paths", s.SkipAuthenticationPaths, "A list of HTTP paths that do not require authentication. If authentication is not configured all paths are allowed.")
 }
 
 func (s *ServingOptions) Validate() []error {
@@ -54,6 +59,20 @@ func (s *ServingOptions) ApplyTo(c *AuthServerConfig) error {
 	c.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{serverCert},
 		MinVersion:   tls.VersionTLS12,
+	}
+
+	if len(s.ClientCAFile) > 0 {
+		provider, err := dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", s.ClientCAFile)
+		if err != nil {
+			return fmt.Errorf("failed to parse authentication server client ca bindle: %w", err)
+		}
+		c.TLSConfig.ClientAuth = tls.RequestClientCert
+		c.ClientCAProvider = provider
+	}
+
+	c.AuthenticationSkipPaths = map[string]struct{}{}
+	for _, p := range s.SkipAuthenticationPaths {
+		c.AuthenticationSkipPaths[p] = struct{}{}
 	}
 
 	return nil
@@ -124,5 +143,7 @@ type Config struct {
 }
 
 type AuthServerConfig struct {
-	TLSConfig *tls.Config
+	TLSConfig               *tls.Config
+	ClientCAProvider        dynamiccertificates.CAContentProvider
+	AuthenticationSkipPaths map[string]struct{}
 }

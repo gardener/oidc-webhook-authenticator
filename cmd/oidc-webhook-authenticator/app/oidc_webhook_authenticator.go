@@ -9,6 +9,7 @@ import (
 	"errors"
 	goflag "flag"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
 	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
+	"github.com/gardener/oidc-webhook-authenticator/internal/filters"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
 
@@ -24,9 +26,9 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/request/x509"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
-	"k8s.io/apiserver/pkg/server/healthz"
-	"k8s.io/apiserver/pkg/server/mux"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -176,21 +178,10 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		defaultingPath = "/webhooks/mutating"
 		validatingPath = "/webhooks/validating"
 		metricsPath    = "/metrics"
+		livezPath      = "/livez"
+		readyzPath     = "/readyz"
+		healthzPath    = "/healthz"
 	)
-	pathRecorder := mux.NewPathRecorderMux("oidc-webhook-authenticator")
-
-	healthz.InstallHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
-	healthz.InstallReadyzHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
-	healthz.InstallLivezHandler(pathRecorder, healthz.LogHealthz, healthz.PingHealthz)
-
-	metricsHandler := promhttp.Handler()
-	metricsHandler = genericapifilters.WithCacheControl(metricsHandler)
-	pathRecorder.Handle(metricsPath, metricsHandler)
-
-	authHandler := authWH.Build()
-	authHandler = genericapifilters.WithCacheControl(authHandler)
-	authHandler = metrics.InstrumentedHandler(authPath, authHandler)
-	pathRecorder.Handle(authPath, authHandler)
 
 	oidc := &authenticationv1alpha1.OpenIDConnect{}
 
@@ -200,21 +191,63 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		return mutatingLogger
 	}
 
-	defaultingHandler := genericapifilters.WithCacheControl(defaultingWebhook)
-	defaultingHandler = metrics.InstrumentedHandler(defaultingPath, defaultingHandler)
-	pathRecorder.Handle(defaultingPath, defaultingHandler)
-
 	validatingLogger := ctrl.Log.WithName("webhooks").WithName("Validating")
 	validatingWebhook := admission.ValidatingWebhookFor(scheme, oidc)
 	validatingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
 		return validatingLogger
 	}
 
-	validatingHandler := genericapifilters.WithCacheControl(validatingWebhook)
-	validatingHandler = metrics.InstrumentedHandler(validatingPath, validatingHandler)
-	pathRecorder.Handle(validatingPath, validatingHandler)
+	handlers := map[string]http.Handler{
+		authPath:       filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(authWH.Build())),
+		defaultingPath: filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(defaultingWebhook)),
+		validatingPath: filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(validatingWebhook)),
+		metricsPath:    filters.WithAllowedMethod("GET", genericapifilters.WithCacheControl(promhttp.Handler())),
+		livezPath:      filters.WithAllowedMethod("GET", ping()),
+		readyzPath:     filters.WithAllowedMethod("GET", ping()),
+		healthzPath:    filters.WithAllowedMethod("GET", ping()),
+	}
 
-	return pathRecorder, nil
+	var auth authenticator.Request = &noOpAuthenticator{}
+	if opts.AuthServerConfig.ClientCAProvider != nil {
+		auth = x509.NewDynamic(opts.AuthServerConfig.ClientCAProvider.VerifyOptions, x509.CommonNameUserConversion)
+	}
+
+	// ensure that we have an actual map and not nil
+	skipPaths := map[string]struct{}{}
+	if opts.AuthServerConfig.AuthenticationSkipPaths != nil {
+		skipPaths = maps.Clone(opts.AuthServerConfig.AuthenticationSkipPaths)
+	}
+
+	// add the authentication filter to not skipped paths
+	for path, handler := range handlers {
+		if _, ok := skipPaths[path]; !ok {
+			handlers[path] = filters.WithAuthentication(auth, handler)
+		}
+	}
+
+	// instrument some of the handlers with additional metrics
+	handlers[authPath] = metrics.InstrumentedHandler(authPath, handlers[authPath])
+	handlers[validatingPath] = metrics.InstrumentedHandler(validatingPath, handlers[validatingPath])
+	handlers[defaultingPath] = metrics.InstrumentedHandler(defaultingPath, handlers[defaultingPath])
+
+	recorder := http.NewServeMux()
+	for path, handler := range handlers {
+		recorder.Handle(path, handler)
+	}
+	return recorder, nil
+}
+
+type noOpAuthenticator struct{}
+
+func (a *noOpAuthenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
+	return nil, true, nil
+}
+
+func ping() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"code":200,"message":"ok"}`))
+	})
 }
 
 // runServer starts the webhook server. It returns if context is canceled or the server cannot start initially.
