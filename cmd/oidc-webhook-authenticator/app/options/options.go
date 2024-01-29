@@ -34,7 +34,7 @@ func (s *ServingOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TLSCertFile, "tls-cert-file", s.TLSCertFile, "File containing the x509 Certificate for HTTPS.")
 	fs.StringVar(&s.TLSKeyFile, "tls-private-key-file", s.TLSKeyFile, "File containing the x509 private key matching --tls-cert-file.")
 	fs.StringVar(&s.ClientCAFile, "client-ca-file", s.ClientCAFile, "If set, any request should present a client certificate signed by one of the authorities in the client-ca-file.")
-	fs.StringArrayVar(&s.SkipAuthenticationPaths, "authentication-skip-paths", s.SkipAuthenticationPaths, "A list of HTTP paths that do not require authentication. If authentication is not configured all paths are allowed.")
+	fs.StringSliceVar(&s.SkipAuthenticationPaths, "authentication-skip-paths", s.SkipAuthenticationPaths, "A list of HTTP paths that do not require authentication. If authentication is not configured all paths are allowed.")
 }
 
 func (s *ServingOptions) Validate() []error {
