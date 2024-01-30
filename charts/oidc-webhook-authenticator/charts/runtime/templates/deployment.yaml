@@ -33,9 +33,6 @@ spec:
         {{- if .Values.kubeconfig }}
         checksum/secret-oidc-webhook-authenticator-kubeconfig: {{ include (print $.Template.BasePath "/secret-kubeconfig.yaml") . | sha256sum }}
         {{- end }}
-        {{- if .Values.auth.kubeconfig }}
-        checksum/secret-oidc-webhook-authenticator-auth-kubeconfig: {{ include (print $.Template.BasePath "/secret-auth-kubeconfig.yaml") . | sha256sum }}
-        {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
@@ -80,10 +77,6 @@ spec:
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
-        {{- if .Values.auth.kubeconfig }}
-        - --authentication-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
-        - --authorization-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
-        {{- end }}
         {{- if .Values.apiAudiences }}
         - --api-audiences={{ .Values.apiAudiences | join "," }}
         {{- end }}
@@ -116,11 +109,6 @@ spec:
           mountPath: /var/run/oidc-webhook-authenticator/kubeconfig
           readOnly: true
         {{- end }}
-        {{- if .Values.auth.kubeconfig }}
-        - name: auth-kubeconfig
-          mountPath: /var/run/oidc-webhook-authenticator/auth-kubeconfig
-          readOnly: true
-        {{- end }}
         {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
         - name: service-account-token
           mountPath: /var/run/oidc-webhook-authenticator/serviceaccount
@@ -135,12 +123,6 @@ spec:
       - name: kubeconfig
         secret:
           secretName: oidc-webhook-authenticator-kubeconfig
-          defaultMode: 420
-      {{- end }}
-      {{- if .Values.auth.kubeconfig }}
-      - name: auth-kubeconfig
-        secret:
-          secretName: oidc-webhook-authenticator-auth-kubeconfig
           defaultMode: 420
       {{- end }}
       {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
