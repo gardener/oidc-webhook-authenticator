@@ -77,6 +77,9 @@ spec:
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
+        {{- if .Values.auth.clientCABundle }}
+        - --client-ca-file=/var/run/oidc-webhook-authenticator/client/bundle.crt
+        {{- end }}
         - --authentication-always-allow-paths={{ .Values.auth.authenticationAlwaysAllowPaths | join "," }}
         - --resync-period={{ .Values.resyncPeriod }}
         livenessProbe:
@@ -111,6 +114,11 @@ spec:
           mountPath: /var/run/oidc-webhook-authenticator/serviceaccount
           readOnly: true
         {{- end }}
+        {{- if .Values.auth.clientCABundle }}
+        - name: client-ca-bundle
+          mountPath: /var/run/oidc-webhook-authenticator/client
+          readOnly: true
+        {{- end }}
       volumes:
       - name: tls
         secret:
@@ -136,4 +144,10 @@ spec:
               {{- if .Values.serviceAccountTokenVolumeProjection.audience }}
               audience: {{ .Values.serviceAccountTokenVolumeProjection.audience }}
               {{- end }}
+      {{- end }}
+      {{- if .Values.auth.clientCABundle }}
+      - name: client-ca-bundle
+        secret:
+          secretName: oidc-webhook-authenticator-client-ca-bundle
+          defaultMode: 420
       {{- end }}
