@@ -598,7 +598,52 @@ var _ = Describe("Integration", func() {
 			}
 		)
 
-		// TODO: add test that asserts that authentication is enforced when making a token review request
+		It("Should not allow annonymous request to /validate-token endpoint of the authenticator", func() {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
+
+			review := &authenticationv1.TokenReview{
+				Spec: authenticationv1.TokenReviewSpec{
+					Token: "foo",
+				},
+			}
+
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+			}
+			client := &http.Client{Transport: tr}
+			body, err := json.Marshal(review)
+			Expect(err).NotTo(HaveOccurred())
+			req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
+			Expect(err).NotTo(HaveOccurred())
+
+			res, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.StatusCode).To(Equal(http.StatusUnauthorized))
+			responseBytes, err := io.ReadAll(res.Body)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(responseBytes).To(Equal([]byte(`{"code":401,"message":"unauthorized"}`)))
+		})
+
+		It("Should allow annonymous request to /healthz endpoint of the authenticator", func() {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+			}
+			client := &http.Client{Transport: tr}
+			req, err := http.NewRequest("GET", "https://localhost:10443/healthz", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			res, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.StatusCode).To(Equal(http.StatusOK))
+			responseBytes, err := io.ReadAll(res.Body)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(responseBytes).To(Equal([]byte(`{"code":200,"message":"ok"}`)))
+		})
 
 		It("Should authenticate token with default prefixes for group and user", func() {
 			idp := createAndStartIDPServer(1)
