@@ -77,9 +77,6 @@ spec:
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
-        {{- if .Values.apiAudiences }}
-        - --api-audiences={{ .Values.apiAudiences | join "," }}
-        {{- end }}
         - --authorization-always-allow-paths={{ .Values.auth.authorizationAlwaysAllowPaths | join "," }}
         - --resync-period={{ .Values.resyncPeriod }}
         livenessProbe:

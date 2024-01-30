@@ -75,9 +75,6 @@ runtime:
     expirationSeconds: 1800
     audience: ""
 
-  # List with identifiers of the API. Tokens used against the API should be bound to at least one of these audiences.
-  apiAudiences: []
-
   additionalLabels:
     deployment: {}
     hpa: {}
