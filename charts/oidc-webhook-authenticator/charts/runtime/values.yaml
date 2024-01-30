@@ -37,7 +37,7 @@ auth:
   # If set, any request should present a client certificate signed by one of the authorities in the client CA bundle.
   # Paths listed in authenticationAlwaysAllowPaths do not require authentication.
   # clientCABundle:
-  
+
   # A list of HTTP paths to skip during authentication.
   authenticationAlwaysAllowPaths:
   - /livez
