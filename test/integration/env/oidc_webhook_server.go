@@ -128,7 +128,7 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 		"--tls-private-key-file="+filepath.Join(s.CertDir, "tls.key"),
 		"--kubeconfig="+kubeconfigFile,
 		"--client-ca-file="+filepath.Join(s.CertDir, "ca.crt"),
-		"--authentication-skip-paths=/healthz,/readyz",
+		"--authentication-always-allow-paths=/healthz,/readyz",
 	)
 
 	return nil

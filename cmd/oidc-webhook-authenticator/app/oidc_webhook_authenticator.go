@@ -213,14 +213,14 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	}
 
 	// ensure that we have an actual map and not nil
-	skipPaths := map[string]struct{}{}
-	if opts.AuthServerConfig.AuthenticationSkipPaths != nil {
-		skipPaths = maps.Clone(opts.AuthServerConfig.AuthenticationSkipPaths)
+	alwaysAllowPaths := map[string]struct{}{}
+	if opts.AuthServerConfig.AuthenticationAlwaysAllowPaths != nil {
+		alwaysAllowPaths = maps.Clone(opts.AuthServerConfig.AuthenticationAlwaysAllowPaths)
 	}
 
 	// add the authentication filter to not skipped paths
 	for path, handler := range handlers {
-		if _, ok := skipPaths[path]; !ok {
+		if _, ok := alwaysAllowPaths[path]; !ok {
 			handlers[path] = filters.WithAuthentication(auth, handler)
 		}
 	}
