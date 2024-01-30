@@ -77,7 +77,7 @@ spec:
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
-        - --authorization-always-allow-paths={{ .Values.auth.authorizationAlwaysAllowPaths | join "," }}
+        - --authentication-always-allow-paths={{ .Values.auth.authenticationAlwaysAllowPaths | join "," }}
         - --resync-period={{ .Values.resyncPeriod }}
         livenessProbe:
           failureThreshold: 3

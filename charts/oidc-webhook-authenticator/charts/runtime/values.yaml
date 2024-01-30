@@ -34,9 +34,14 @@ webhookConfig:
 kubeconfig:
 
 auth:
-  # A list of HTTP paths to skip during authorization.
-  authorizationAlwaysAllowPaths:
+  # A list of HTTP paths to skip during authentication.
+  authenticationAlwaysAllowPaths:
+  - /livez
+  - /readyz
+  - /healthz
   - /webhooks/validating
+  # - /metrics
+  # - /validate-token
 
 resyncPeriod: 10m
 resources:
