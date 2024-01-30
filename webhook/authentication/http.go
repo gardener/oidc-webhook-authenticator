@@ -13,7 +13,6 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
-	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
@@ -65,21 +64,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for key, val := range authResp.User.GetExtra() {
 			tr.Status.User.Extra[key] = authenticationv1.ExtraValue(val)
 		}
-
-		usr, ok := apirequest.UserFrom(r.Context())
-
-		if ok && usr != nil {
-			if uid := usr.GetUID(); uid != "" {
-				tr.Status.User.Extra["gardener.cloud/apiserver/uid"] = []string{uid}
-			}
-			if userName := usr.GetName(); userName != "" {
-				tr.Status.User.Extra["gardener.cloud/apiserver/username"] = []string{userName}
-			}
-			if groups := usr.GetGroups(); len(groups) > 0 {
-				tr.Status.User.Extra["gardener.cloud/apiserver/groups"] = authenticationv1.ExtraValue(groups)
-			}
-		}
-
 	}
 
 	err = json.NewEncoder(w).Encode(tr)
