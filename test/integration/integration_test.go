@@ -541,8 +541,11 @@ var _ = Describe("Integration", func() {
 						Token: userToken,
 					},
 				}
+
 				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+					TLSClientConfig: &tls.Config{RootCAs: caCertPool, Certificates: []tls.Certificate{
+						authWebhookClientCert,
+					}},
 				}
 				client := &http.Client{Transport: tr}
 				body, err := json.Marshal(review)

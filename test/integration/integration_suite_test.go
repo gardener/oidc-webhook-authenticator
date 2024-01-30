@@ -9,6 +9,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -47,6 +48,7 @@ var (
 	clientset                                    *kubernetes.Clientset
 	ctx                                          = context.Background()
 	dumpLogs                                     = false
+	authWebhookClientCert                        tls.Certificate
 )
 
 const (
@@ -87,6 +89,10 @@ var _ = BeforeSuite(func() {
 	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
+
+	clientCert := testEnv.OIDCClientCert()
+	authWebhookClientCert, err = tls.X509KeyPair(clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+	Expect(err).NotTo(HaveOccurred())
 
 	apiServerSecurePort, err = strconv.Atoi(testEnv.Environment.ControlPlane.GetAPIServer().SecureServing.Port)
 	Expect(err).NotTo(HaveOccurred())

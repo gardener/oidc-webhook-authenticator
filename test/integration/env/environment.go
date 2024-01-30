@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	utils "github.com/gardener/oidc-webhook-authenticator/test/integration/cert-utils"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -94,7 +95,10 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 	authKubeconfigPath := filepath.Join(e.certDir, "auth-webhook.yaml")
 	kubeAPIServer.Configure().Set("authentication-token-webhook-cache-ttl", "0s")
 	kubeAPIServer.Configure().Set("authentication-token-webhook-config-file", authKubeconfigPath)
-	authKubeconfig, err := prepareKubeconfig("https://localhost:10443/validate-token", e.oidcWebhookServer.CaCert.CertificatePEM, configv1.AuthInfo{})
+	authKubeconfig, err := prepareKubeconfig("https://localhost:10443/validate-token", e.oidcWebhookServer.CaCert.CertificatePEM, configv1.AuthInfo{
+		ClientCertificateData: e.oidcWebhookServer.ClientCert.CertificatePEM,
+		ClientKeyData:         e.oidcWebhookServer.ClientCert.PrivateKeyPEM,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +173,11 @@ func (e *OIDCWebhookTestEnvironment) Stop() error {
 // OIDCServerCA returns the PEM encoded certificate authority for the OIDC Webhook Server.
 func (e *OIDCWebhookTestEnvironment) OIDCServerCA() []byte {
 	return e.oidcWebhookServer.CaCert.CertificatePEM
+}
+
+// OIDCClientCert returns a client certificate that can be used to communicate with the OIDC Webhook Server.
+func (e *OIDCWebhookTestEnvironment) OIDCClientCert() *utils.Certificate {
+	return e.oidcWebhookServer.ClientCert
 }
 
 func setupOIDCRbacAndReturnServiceAccountToken(ctx context.Context, c *kubernetes.Clientset) (string, error) {

@@ -30,6 +30,7 @@ type oidcWebhookServer struct {
 	CertDir       string
 	KubeconfigDir string
 	CaCert        *utils.Certificate
+	ClientCert    *utils.Certificate
 	Args          []string
 	Out           io.Writer
 	Err           io.Writer
@@ -94,8 +95,20 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 			return err
 		}
 
+		clientCertConfig := &utils.CertConfig{
+			Name:       "oidc-client",
+			CommonName: "oidc-client",
+			CertType:   utils.ClientCert,
+			SigningCA:  caCertificate,
+		}
+		clientCertificate, err := clientCertConfig.GenerateCertificate()
+		if err != nil {
+			return err
+		}
+
 		s.CaCert = caCertificate
 		s.CertDir = tempDir
+		s.ClientCert = clientCertificate
 	}
 
 	if binPath := os.Getenv(envOIDCWebhookAuthenticatorBin); len(binPath) > 0 {
@@ -114,6 +127,8 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 		"--tls-cert-file="+filepath.Join(s.CertDir, "tls.crt"),
 		"--tls-private-key-file="+filepath.Join(s.CertDir, "tls.key"),
 		"--kubeconfig="+kubeconfigFile,
+		"--client-ca-file="+filepath.Join(s.CertDir, "ca.crt"),
+		"--authentication-skip-paths=/healthz,/readyz",
 	)
 
 	return nil
