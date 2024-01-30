@@ -556,6 +556,9 @@ var _ = Describe("Integration", func() {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
 
+						// expect that the webhook returns a 200 response
+						Expect(res.StatusCode).To(Equal(http.StatusOK))
+
 						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
 
@@ -572,6 +575,9 @@ var _ = Describe("Integration", func() {
 					for i := 0; i < 10; i++ {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
+
+						// expect that the webhook returns a 200 response
+						Expect(res.StatusCode).To(Equal(http.StatusOK))
 
 						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
