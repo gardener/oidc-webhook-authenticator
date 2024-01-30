@@ -129,72 +129,6 @@ When a user wants to authenticate to the `kube-apiserver` via this new Custom Op
     }
     ```
 
-1. The webhook uses `TokenReview` to authenticate the calling API server (the Kube APIServer for delegation of authentication and authorization might be different from the calling API server).
-
-    ```json
-    {
-      "TokenReview": {
-        "kind": "TokenReview",
-        "apiVersion": "authentication.k8s.io/v1beta1",
-        "spec": {
-          "token": "api-server-token..."
-        }
-      }
-    }
-    ```
-
-1. After the Authentication API server returns the identity of callee API server. In this case the API server is running as a Pod in a Kubernetes cluster:
-
-    ```json
-    {
-        "apiVersion": "authentication.k8s.io/v1",
-        "kind": "TokenReview",
-        "metadata": {
-            "creationTimestamp": null
-        },
-        "spec": {
-            "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJocEdLTXZlYjV1OE5heD..."
-        },
-        "status": {
-            "authenticated": true,
-            "user": {
-                "groups": [
-                    "system:serviceaccounts",
-                    "system:serviceaccounts:some-namespace",
-                    "system:authenticated"
-                ],
-                "uid": "14db103e-88bb-4fb3-8efd-ca9bec91c7bf",
-                "username": "system:serviceaccount:some-namespace:kube-apiserver"
-            }
-        }
-    }
-    ```
-
-1. The webhook makes a `SubjectAccessReview` call to the Authorization API server to ensure that callee API server is allowed to validate tokens:
-
-    ```json
-    {
-      "apiVersion": "authorization.k8s.io/v1",
-      "kind": "SubjectAccessReview",
-      "spec": {
-        "groups": [
-          "system:serviceaccounts",
-          "system:serviceaccounts:some-namespace",
-          "system:authenticated"
-        ],
-        "nonResourceAttributes": {
-          "path": "/validate-token",
-          "verb": "post"
-        },
-        "user": "system:serviceaccount:some-namespace:kube-apiserver"
-      },
-      "status": {
-        "allowed": true,
-        "reason": "RBAC: allowed by RoleBinding \"kube-apiserver\" of ClusterRole \"kube-apiserver\" to ServiceAccount \"system:serviceaccount:some-namespace:kube-apiserver\""
-      }
-    }
-    ```
-
 1. The webhook then iterates over all registered `OpenIDConnect` Token authenticators and tries to validate the token.
 1. Upon a successful validation it returns the `TokenReview` with user, groups and extra parameters:
 
@@ -214,17 +148,6 @@ When a user wants to authenticate to the `kube-apiserver` via this new Custom Op
               "test-some-group"
             ],
             "extra": {
-              "gardener.cloud/apiserver/groups": [
-                "system:serviceaccounts",
-                "system:serviceaccounts:garden",
-                "system:authenticated"
-              ],
-              "gardener.cloud/apiserver/uid": [
-                "system:serviceaccount:garden:default"
-              ],
-              "gardener.cloud/apiserver/username": [
-                "system:serviceaccount:garden:default"
-              ],
               "gardener.cloud/authenticator/name": [
                 "gardener"
               ],
@@ -240,15 +163,8 @@ When a user wants to authenticate to the `kube-apiserver` via this new Custom Op
 
 It adds the following extra information, that can be used by custom authorizers later on:
 
-- `gardener.cloud/apiserver/groups` contains all the groups of the API server which is making the `TokenReview` request (it's the ServiceAccount of the API Server Pod in this case).
-- `gardener.cloud/apiserver/uid` contains the UID of the API server which is making the `TokenReview` request (it's the ServiceAccount of the API Server Pod in this case).
-- `gardener.cloud/apiserver/username` contains the username of the API server which is making the `TokenReview` request (it's the ServiceAccount of the API Server Pod in this case).
 - `gardener.cloud/authenticator/name` contains the name of the `OpenIDConnect` authenticator which was used.
 - `gardener.cloud/authenticator/uid` contains the UID of the `OpenIDConnect` authenticator which was used.
-
-An overview of the flow:
-
-![alt text](docs/authentication.svg "Authentication with OIDC webhook")
 
 ## Docker images
 
