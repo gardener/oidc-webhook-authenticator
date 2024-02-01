@@ -18,6 +18,7 @@ import (
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
 	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/internal/filters"
+	generichandlers "github.com/gardener/oidc-webhook-authenticator/internal/handlers"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/metrics"
 
@@ -202,9 +203,9 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		defaultingPath: filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(defaultingWebhook)),
 		validatingPath: filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(validatingWebhook)),
 		metricsPath:    filters.WithAllowedMethod("GET", genericapifilters.WithCacheControl(promhttp.Handler())),
-		livezPath:      filters.WithAllowedMethod("GET", ping()),
-		readyzPath:     filters.WithAllowedMethod("GET", ping()),
-		healthzPath:    filters.WithAllowedMethod("GET", ping()),
+		livezPath:      filters.WithAllowedMethod("GET", generichandlers.Ping()),
+		readyzPath:     filters.WithAllowedMethod("GET", generichandlers.Ping()),
+		healthzPath:    filters.WithAllowedMethod("GET", generichandlers.Ping()),
 	}
 
 	var auth authenticator.Request = &noOpAuthenticator{}
@@ -234,6 +235,9 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	for path, handler := range handlers {
 		recorder.Handle(path, handler)
 	}
+	// "/" matches all paths that are not matched by other registered paths
+	// see https://pkg.go.dev/net/http#ServeMux
+	recorder.Handle("/", filters.WithAuthentication(auth, generichandlers.NotFound()))
 	return recorder, nil
 }
 
@@ -241,13 +245,6 @@ type noOpAuthenticator struct{}
 
 func (a *noOpAuthenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	return nil, true, nil
-}
-
-func ping() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"code":200,"message":"ok"}`))
-	})
 }
 
 // runServer starts the webhook server. It returns if context is canceled or the server cannot start initially.
