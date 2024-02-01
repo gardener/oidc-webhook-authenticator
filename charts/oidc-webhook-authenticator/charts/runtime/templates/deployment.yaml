@@ -33,6 +33,9 @@ spec:
         {{- if .Values.kubeconfig }}
         checksum/secret-oidc-webhook-authenticator-kubeconfig: {{ include (print $.Template.BasePath "/secret-kubeconfig.yaml") . | sha256sum }}
         {{- end }}
+        {{- if .Values.auth.clientCABundle }}
+        checksum/configmap-oidc-webhook-authenticator-client-ca-bundle: {{ include (print $.Template.BasePath "/configmap-client-ca-bundle.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
@@ -147,7 +150,7 @@ spec:
       {{- end }}
       {{- if .Values.auth.clientCABundle }}
       - name: client-ca-bundle
-        secret:
-          secretName: oidc-webhook-authenticator-client-ca-bundle
+        configMap:
+          name: oidc-webhook-authenticator-client-ca-bundle
           defaultMode: 420
       {{- end }}
