@@ -83,11 +83,11 @@ spec:
         {{- if .Values.auth.clientCABundle }}
         - --client-ca-file=/var/run/oidc-webhook-authenticator/client/bundle.crt
         {{- end }}
-        {{- if .Values.server.bindAddress }}
-        - --bind-address={{ .Values.server.bindAddress }}
+        {{- if .Values.server.address }}
+        - --address={{ .Values.server.address }}
         {{- end }}
-        {{- if .Values.server.bindPort }}
-        - --bind-port={{ .Values.server.bindPort }}
+        {{- if .Values.server.port }}
+        - --port={{ .Values.server.port }}
         {{- end }}
         - --authentication-always-allow-paths={{ .Values.auth.authenticationAlwaysAllowPaths | join "," }}
         - --resync-period={{ .Values.resyncPeriod }}

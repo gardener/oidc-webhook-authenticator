@@ -199,13 +199,13 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	}
 
 	handlers := map[string]http.Handler{
-		authPath:       filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(authWH.Build())),
-		defaultingPath: filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(defaultingWebhook)),
-		validatingPath: filters.WithAllowedMethod("POST", genericapifilters.WithCacheControl(validatingWebhook)),
-		metricsPath:    filters.WithAllowedMethod("GET", genericapifilters.WithCacheControl(promhttp.Handler())),
-		livezPath:      filters.WithAllowedMethod("GET", generichandlers.Ping()),
-		readyzPath:     filters.WithAllowedMethod("GET", generichandlers.Ping()),
-		healthzPath:    filters.WithAllowedMethod("GET", generichandlers.Ping()),
+		authPath:       filters.WithAllowedMethod(http.MethodPost, genericapifilters.WithCacheControl(authWH.Build())),
+		defaultingPath: filters.WithAllowedMethod(http.MethodPost, genericapifilters.WithCacheControl(defaultingWebhook)),
+		validatingPath: filters.WithAllowedMethod(http.MethodPost, genericapifilters.WithCacheControl(validatingWebhook)),
+		metricsPath:    filters.WithAllowedMethod(http.MethodGet, genericapifilters.WithCacheControl(promhttp.Handler())),
+		livezPath:      filters.WithAllowedMethod(http.MethodGet, generichandlers.Ping()),
+		readyzPath:     filters.WithAllowedMethod(http.MethodGet, generichandlers.Ping()),
+		healthzPath:    filters.WithAllowedMethod(http.MethodGet, generichandlers.Ping()),
 	}
 
 	var auth authenticator.Request = &noOpAuthenticator{}

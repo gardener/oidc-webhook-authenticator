@@ -29,8 +29,8 @@ type ServingOptions struct {
 	ClientCAFile                   string
 	AuthenticationAlwaysAllowPaths []string
 
-	BindAddress string
-	BindPort    uint
+	Address string
+	Port    uint
 }
 
 // AddFlags adds server options to flagset
@@ -40,8 +40,8 @@ func (s *ServingOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.ClientCAFile, "client-ca-file", s.ClientCAFile, "If set, any request should present a client certificate signed by one of the authorities in the client-ca-file.")
 	fs.StringSliceVar(&s.AuthenticationAlwaysAllowPaths, "authentication-always-allow-paths", s.AuthenticationAlwaysAllowPaths, "A list of HTTP paths that do not require authentication. If authentication is not configured all paths are allowed.")
 
-	fs.StringVar(&s.BindAddress, "bind-address", "", "The IP address that the server will listen on. If unspecified all interfaces will be used.")
-	fs.UintVar(&s.BindPort, "bind-port", 10443, "The port that the server will listen on. If unspecified it will default to 10443.")
+	fs.StringVar(&s.Address, "address", "", "The IP address that the server will listen on. If unspecified all interfaces will be used.")
+	fs.UintVar(&s.Port, "port", 10443, "The port that the server will listen on.")
 }
 
 func (s *ServingOptions) Validate() []error {
@@ -58,7 +58,7 @@ func (s *ServingOptions) Validate() []error {
 }
 
 func (s *ServingOptions) ApplyTo(c *AuthServerConfig) error {
-	c.Address = fmt.Sprintf("%s:%s", s.BindAddress, strconv.Itoa(int(s.BindPort)))
+	c.Address = fmt.Sprintf("%s:%s", s.Address, strconv.Itoa(int(s.Port)))
 	serverCert, err := tls.LoadX509KeyPair(s.TLSCertFile, s.TLSKeyFile)
 	if err != nil {
 		return fmt.Errorf("failed to parse authentication server certificates: %w", err)
