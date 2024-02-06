@@ -241,7 +241,10 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 	return recorder, nil
 }
 
+// noOpAuthenticator implements [authenticator.Request]
 type noOpAuthenticator struct{}
+
+var _ authenticator.Request = (*noOpAuthenticator)(nil)
 
 func (a *noOpAuthenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	return nil, true, nil
@@ -250,7 +253,7 @@ func (a *noOpAuthenticator) AuthenticateRequest(req *http.Request) (*authenticat
 // runServer starts the webhook server. It returns if context is canceled or the server cannot start initially.
 func runServer(ctx context.Context, srv *http.Server) error {
 	errCh := make(chan error)
-	l := ctrl.Log.WithName("authentication server")
+	l := ctrl.Log.WithName("authentication-server")
 	go func(errCh chan<- error) {
 		l.Info("starts listening", "address", srv.Addr)
 		defer close(errCh)

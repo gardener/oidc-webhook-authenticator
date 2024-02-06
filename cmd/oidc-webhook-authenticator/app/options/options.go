@@ -129,11 +129,7 @@ func (o *Options) ApplyTo(server *Config) error {
 
 // Validate checks if options are valid
 func (o *Options) Validate() []error {
-	errors := []error{}
-
-	errors = append(errors, o.ServingOptions.Validate()...)
-
-	return errors
+	return o.ServingOptions.Validate()
 }
 
 // Config has all the context to run an OIDC Webhook Authenticator

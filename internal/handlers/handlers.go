@@ -9,7 +9,7 @@ import "net/http"
 func NotFound() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"code":404,"message":"not found"}`))
 	})
 }

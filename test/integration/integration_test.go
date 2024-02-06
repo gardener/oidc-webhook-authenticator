@@ -598,7 +598,7 @@ var _ = Describe("Integration", func() {
 			}
 		)
 
-		It("Should not allow annonymous request to /validate-token endpoint of the authenticator", func() {
+		It("Should not allow anonymous request to /validate-token endpoint of the authenticator", func() {
 			caCertPool := x509.NewCertPool()
 			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
 
@@ -626,7 +626,7 @@ var _ = Describe("Integration", func() {
 			Expect(responseBytes).To(Equal([]byte(`{"code":401,"message":"unauthorized"}`)))
 		})
 
-		It("Should allow annonymous request to /healthz endpoint of the authenticator", func() {
+		It("Should allow anonymous request to /healthz endpoint of the authenticator", func() {
 			caCertPool := x509.NewCertPool()
 			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
 			tr := &http.Transport{

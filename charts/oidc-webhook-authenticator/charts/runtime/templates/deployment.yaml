@@ -151,6 +151,6 @@ spec:
       {{- if .Values.auth.clientCABundle }}
       - name: client-ca-bundle
         configMap:
-          name: oidc-webhook-authenticator-client-ca-bundle
+          name: {{ include "oidc-webhook-authenticator.name" . }}-client-ca-bundle
           defaultMode: 420
       {{- end }}
