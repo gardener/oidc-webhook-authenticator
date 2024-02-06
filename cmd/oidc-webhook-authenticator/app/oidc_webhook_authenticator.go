@@ -142,7 +142,7 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 	}
 
 	srv := &http.Server{
-		Addr:         ":10443",
+		Addr:         opts.AuthServerConfig.Address,
 		Handler:      handler,
 		TLSConfig:    opts.AuthServerConfig.TLSConfig,
 		ReadTimeout:  10 * time.Second,

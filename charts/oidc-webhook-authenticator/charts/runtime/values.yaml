@@ -47,6 +47,10 @@ auth:
   # - /metrics
   # - /validate-token
 
+server:
+  bindAddress: ""
+  bindPort: 10443
+
 resyncPeriod: 10m
 resources:
   requests:
