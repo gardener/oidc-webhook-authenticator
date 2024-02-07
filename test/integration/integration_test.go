@@ -532,7 +532,7 @@ var _ = Describe("Integration", func() {
 
 	Context("Authenticating user against the webhook authenticator via token from a trusted identity provider", func() {
 		var (
-			makeTokenReviewRequestAndAssertError = func(token, userToken string, ca []byte, expectedStatusCode int, expectedErrMsgPart string) {
+			makeTokenReviewRequest = func(userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
 				caCertPool := x509.NewCertPool()
 				caCertPool.AppendCertsFromPEM(ca)
 
@@ -541,50 +541,26 @@ var _ = Describe("Integration", func() {
 						Token: userToken,
 					},
 				}
+
 				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+					TLSClientConfig: &tls.Config{RootCAs: caCertPool, Certificates: []tls.Certificate{
+						authWebhookClientCert,
+					}},
 				}
 				client := &http.Client{Transport: tr}
 				body, err := json.Marshal(review)
 				Expect(err).NotTo(HaveOccurred())
 				req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
 				Expect(err).NotTo(HaveOccurred())
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
-
-				res, err := client.Do(req)
-				Expect(err).NotTo(HaveOccurred())
-
-				responseBytes, err := io.ReadAll(res.Body)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(string(responseBytes)).To(ContainSubstring(expectedErrMsgPart))
-
-				Expect(res.StatusCode).To(Equal(expectedStatusCode))
-			}
-
-			makeTokenReviewRequest = func(apiserverToken, userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
-				caCertPool := x509.NewCertPool()
-				caCertPool.AppendCertsFromPEM(ca)
-
-				review := &authenticationv1.TokenReview{
-					Spec: authenticationv1.TokenReviewSpec{
-						Token: userToken,
-					},
-				}
-				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{RootCAs: caCertPool},
-				}
-				client := &http.Client{Transport: tr}
-				body, err := json.Marshal(review)
-				Expect(err).NotTo(HaveOccurred())
-				req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
-				Expect(err).NotTo(HaveOccurred())
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", apiserverToken))
 
 				reviewResponse := &authenticationv1.TokenReview{}
 				if expectToAuthenticate {
 					Eventually(func() bool {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
+
+						// expect that the webhook returns a 200 response
+						Expect(res.StatusCode).To(Equal(http.StatusOK))
 
 						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
@@ -603,6 +579,9 @@ var _ = Describe("Integration", func() {
 						res, err := client.Do(req)
 						Expect(err).NotTo(HaveOccurred())
 
+						// expect that the webhook returns a 200 response
+						Expect(res.StatusCode).To(Equal(http.StatusOK))
+
 						responseBytes, err := io.ReadAll(res.Body)
 						Expect(err).NotTo(HaveOccurred())
 
@@ -619,12 +598,51 @@ var _ = Describe("Integration", func() {
 			}
 		)
 
-		It("Should not authenticate the token review request", func() {
-			makeTokenReviewRequestAndAssertError("invalid-token", "token", testEnv.OIDCServerCA(), http.StatusUnauthorized, "Unauthorized")
+		It("Should not allow anonymous request to /validate-token endpoint of the authenticator", func() {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
+
+			review := &authenticationv1.TokenReview{
+				Spec: authenticationv1.TokenReviewSpec{
+					Token: "foo",
+				},
+			}
+
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+			}
+			client := &http.Client{Transport: tr}
+			body, err := json.Marshal(review)
+			Expect(err).NotTo(HaveOccurred())
+			req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
+			Expect(err).NotTo(HaveOccurred())
+
+			res, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.StatusCode).To(Equal(http.StatusUnauthorized))
+			responseBytes, err := io.ReadAll(res.Body)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(responseBytes).To(Equal([]byte(`{"code":401,"message":"unauthorized"}`)))
 		})
 
-		It("Should not authorize the token review request", func() {
-			makeTokenReviewRequestAndAssertError(defaultServiceAccountToken, "token", testEnv.OIDCServerCA(), http.StatusForbidden, `User \"system:serviceaccount:default:default\" cannot post path \"/validate-token\"`)
+		It("Should allow anonymous request to /healthz endpoint of the authenticator", func() {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+			}
+			client := &http.Client{Transport: tr}
+			req, err := http.NewRequest("GET", "https://localhost:10443/healthz", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			res, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.StatusCode).To(Equal(http.StatusOK))
+			responseBytes, err := io.ReadAll(res.Body)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(responseBytes).To(Equal([]byte(`{"code":200,"message":"ok"}`)))
 		})
 
 		It("Should authenticate token with default prefixes for group and user", func() {
@@ -644,7 +662,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
@@ -675,7 +693,7 @@ var _ = Describe("Integration", func() {
 				token, err := idp.Sign(signingKeyIndex, claims)
 				Expect(err).NotTo(HaveOccurred())
 
-				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 				Expect(review.Status.Authenticated).To(BeTrue())
 				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -715,7 +733,7 @@ var _ = Describe("Integration", func() {
 				token, err := idp.Sign(signingKeyIndex, claims)
 				Expect(err).NotTo(HaveOccurred())
 
-				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 				Expect(review.Status.Authenticated).To(BeTrue())
 				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -757,7 +775,7 @@ var _ = Describe("Integration", func() {
 				token, err := idp.Sign(signingKeyIndex, claims)
 				Expect(err).NotTo(HaveOccurred())
 
-				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 				Expect(review.Status.Authenticated).To(BeTrue())
 				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -770,7 +788,7 @@ var _ = Describe("Integration", func() {
 				token, err := idp1.Sign(signingKeyIndex, claims)
 				Expect(err).NotTo(HaveOccurred())
 
-				review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 				Expect(review.Status.Authenticated).To(BeFalse())
 				Expect(review.Status.User.Username).To(BeEmpty())
@@ -807,7 +825,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -839,7 +857,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -877,7 +895,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + realUser))
@@ -911,7 +929,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -940,7 +958,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -974,7 +992,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -1008,7 +1026,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -1042,7 +1060,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
@@ -1079,7 +1097,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
@@ -1113,7 +1131,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -1150,7 +1168,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
@@ -1184,7 +1202,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -1219,7 +1237,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -1244,7 +1262,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -1300,13 +1318,13 @@ var _ = Describe("Integration", func() {
 			token2, err := idp.Sign(0, claims2)
 			Expect(err).NotTo(HaveOccurred())
 
-			review1 := makeTokenReviewRequest(apiserverToken, token1, testEnv.OIDCServerCA(), true)
+			review1 := makeTokenReviewRequest(token1, testEnv.OIDCServerCA(), true)
 
 			Expect(review1.Status.Authenticated).To(BeTrue())
 			Expect(review1.Status.User.Username).To(Equal(userPrefix1 + user))
 			Expect(review1.Status.User.Groups).To(ConsistOf(groupsPrefix1 + "admin"))
 
-			review2 := makeTokenReviewRequest(apiserverToken, token2, testEnv.OIDCServerCA(), true)
+			review2 := makeTokenReviewRequest(token2, testEnv.OIDCServerCA(), true)
 
 			Expect(review2.Status.Authenticated).To(BeTrue())
 			Expect(review2.Status.User.Username).To(Equal(userPrefix2 + user))
@@ -1350,7 +1368,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
@@ -1396,7 +1414,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
@@ -1407,7 +1425,7 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() bool {
-				review = makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+				review = makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 				return len(review.Status.User.Groups) == 0
 			}, timeout, interval).Should(BeTrue())
 
@@ -1437,7 +1455,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 			// user gets authenticated so the oidc resource is reconciled
 			Expect(review.Status.Authenticated).To(BeTrue())
 
@@ -1445,7 +1463,7 @@ var _ = Describe("Integration", func() {
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort+1)
 			token, err = idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
-			review = makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review = makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1470,7 +1488,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -1497,7 +1515,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
@@ -1522,7 +1540,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1547,7 +1565,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1571,7 +1589,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1606,7 +1624,7 @@ var _ = Describe("Integration", func() {
 			modifiedToken := fmt.Sprintf("%s.%s.%s", split[0], base64.RawURLEncoding.EncodeToString(modifiedPayload), split[2])
 			Expect(token).NotTo(Equal(modifiedToken))
 
-			review := makeTokenReviewRequest(apiserverToken, modifiedToken, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(modifiedToken, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1644,7 +1662,7 @@ var _ = Describe("Integration", func() {
 			modifiedToken := fmt.Sprintf("%s.%s.%s", split[0], base64.RawURLEncoding.EncodeToString(modifiedPayload), split[2])
 			Expect(token).NotTo(Equal(modifiedToken))
 
-			review := makeTokenReviewRequest(apiserverToken, modifiedToken, testEnv.OIDCServerCA(), false)
+			review := makeTokenReviewRequest(modifiedToken, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1671,7 +1689,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 			// user gets authenticated so the oidc resource is reconciled
 			Expect(review.Status.Authenticated).To(BeTrue())
 
@@ -1679,7 +1697,7 @@ var _ = Describe("Integration", func() {
 			claims["aud"] = "something-invalid"
 			token, err = idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
-			review = makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), false)
+			review = makeTokenReviewRequest(token, testEnv.OIDCServerCA(), false)
 			Expect(review.Status.Authenticated).To(BeFalse())
 			Expect(review.Status.User.Username).To(BeEmpty())
 			Expect(review.Status.User.Groups).To(BeEmpty())
@@ -1711,7 +1729,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			review := makeTokenReviewRequest(apiserverToken, token, testEnv.OIDCServerCA(), true)
+			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
 			Expect(review.Status.User.Username).To(Equal(userPrefix + user))

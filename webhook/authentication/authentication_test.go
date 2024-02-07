@@ -21,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
-	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -179,8 +178,7 @@ var _ = Describe("Authentication", func() {
 
 		It("should return user info with additional keys if user is passed in the context of the request", func() {
 			webhook := mockAuth.defaultWebhook()
-			ctx := apirequest.WithUser(context.Background(), mockAuth.response.User)
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/some-valid-path", bytes.NewBufferString(actualTokenReviewJSON))
+			req, err := http.NewRequest(http.MethodPost, "/some-valid-path", bytes.NewBufferString(actualTokenReviewJSON))
 			Expect(err).NotTo(HaveOccurred())
 			req.Header.Set("Content-Type", "application/json")
 			handler := webhook.Build()
@@ -197,11 +195,8 @@ var _ = Describe("Authentication", func() {
 					UID:      "first",
 					Groups:   []string{"dev", "admin"},
 					Extra: map[string]authenticationv1.ExtraValue{
-						"extra1":                            {"value1", "value2"},
-						"extra2":                            {"value3"},
-						"gardener.cloud/apiserver/uid":      {"first"},
-						"gardener.cloud/apiserver/username": {"johndoe"},
-						"gardener.cloud/apiserver/groups":   {"dev", "admin"},
+						"extra1": {"value1", "value2"},
+						"extra2": {"value3"},
 					},
 				},
 			}

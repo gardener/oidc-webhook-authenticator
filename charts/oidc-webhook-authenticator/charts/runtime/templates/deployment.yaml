@@ -33,8 +33,8 @@ spec:
         {{- if .Values.kubeconfig }}
         checksum/secret-oidc-webhook-authenticator-kubeconfig: {{ include (print $.Template.BasePath "/secret-kubeconfig.yaml") . | sha256sum }}
         {{- end }}
-        {{- if .Values.auth.kubeconfig }}
-        checksum/secret-oidc-webhook-authenticator-auth-kubeconfig: {{ include (print $.Template.BasePath "/secret-auth-kubeconfig.yaml") . | sha256sum }}
+        {{- if .Values.auth.clientCABundle }}
+        checksum/configmap-oidc-webhook-authenticator-client-ca-bundle: {{ include (print $.Template.BasePath "/configmap-client-ca-bundle.yaml") . | sha256sum }}
         {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
@@ -80,14 +80,16 @@ spec:
         - --kubeconfig=/var/run/oidc-webhook-authenticator/kubeconfig/kubeconfig
         {{- end }}
         - --v=2
-        {{- if .Values.auth.kubeconfig }}
-        - --authentication-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
-        - --authorization-kubeconfig=/var/run/oidc-webhook-authenticator/auth-kubeconfig/kubeconfig
+        {{- if .Values.auth.clientCABundle }}
+        - --client-ca-file=/var/run/oidc-webhook-authenticator/client/bundle.crt
         {{- end }}
-        {{- if .Values.apiAudiences }}
-        - --api-audiences={{ .Values.apiAudiences | join "," }}
+        {{- if .Values.server.address }}
+        - --address={{ .Values.server.address }}
         {{- end }}
-        - --authorization-always-allow-paths={{ .Values.auth.authorizationAlwaysAllowPaths | join "," }}
+        {{- if .Values.server.port }}
+        - --port={{ .Values.server.port }}
+        {{- end }}
+        - --authentication-always-allow-paths={{ .Values.auth.authenticationAlwaysAllowPaths | join "," }}
         - --resync-period={{ .Values.resyncPeriod }}
         livenessProbe:
           failureThreshold: 3
@@ -116,14 +118,14 @@ spec:
           mountPath: /var/run/oidc-webhook-authenticator/kubeconfig
           readOnly: true
         {{- end }}
-        {{- if .Values.auth.kubeconfig }}
-        - name: auth-kubeconfig
-          mountPath: /var/run/oidc-webhook-authenticator/auth-kubeconfig
-          readOnly: true
-        {{- end }}
         {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
         - name: service-account-token
           mountPath: /var/run/oidc-webhook-authenticator/serviceaccount
+          readOnly: true
+        {{- end }}
+        {{- if .Values.auth.clientCABundle }}
+        - name: client-ca-bundle
+          mountPath: /var/run/oidc-webhook-authenticator/client
           readOnly: true
         {{- end }}
       volumes:
@@ -135,12 +137,6 @@ spec:
       - name: kubeconfig
         secret:
           secretName: oidc-webhook-authenticator-kubeconfig
-          defaultMode: 420
-      {{- end }}
-      {{- if .Values.auth.kubeconfig }}
-      - name: auth-kubeconfig
-        secret:
-          secretName: oidc-webhook-authenticator-auth-kubeconfig
           defaultMode: 420
       {{- end }}
       {{- if .Values.serviceAccountTokenVolumeProjection.enabled }}
@@ -157,4 +153,10 @@ spec:
               {{- if .Values.serviceAccountTokenVolumeProjection.audience }}
               audience: {{ .Values.serviceAccountTokenVolumeProjection.audience }}
               {{- end }}
+      {{- end }}
+      {{- if .Values.auth.clientCABundle }}
+      - name: client-ca-bundle
+        configMap:
+          name: {{ include "oidc-webhook-authenticator.name" . }}-client-ca-bundle
+          defaultMode: 420
       {{- end }}

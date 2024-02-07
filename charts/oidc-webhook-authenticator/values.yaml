@@ -13,10 +13,6 @@ application:
     user:
       name: ""
 
-  # Specifies if rolebinding to role extension-apiserver-authentication-reader in kube-system namespace and clusterrolebinding to cluster role system:auth-delegator
-  # should be created for the webhook's service account. Usually there is no need for this value to be `false`.
-  installDelegatorBindings: true
-
   webhookConfig:
     # CA bundle used to verify the webhook server certificate.
     # If global.certManager.enabled is set to `true` then `caBundle` value will be ignored.
@@ -59,13 +55,25 @@ runtime:
   kubeconfig:
 
   auth:
-    # /healthz, /readyz, /livez endpoints are always allowed
-    # Kubeconfig to the target authentication and authorization cluster. In-cluster configuration will be used if not specified.
-    # If automountServiceAccountToken is set to `true` then this value is required because in-cluster configuration will not work.
-    kubeconfig:
-    # A list of HTTP paths to skip during authorization.
-    authorizationAlwaysAllowPaths:
+    # If set, any request should present a client certificate signed by one of the authorities in the client CA bundle.
+    # Paths listed in authenticationAlwaysAllowPaths do not require authentication.
+    # clientCABundle: |
+    #   -----BEGIN CERTIFICATE-----
+    #   ...
+    #   -----END CERTIFICATE-----
+
+    # A list of HTTP paths to skip during authentication.
+    authenticationAlwaysAllowPaths:
+    - /livez
+    - /readyz
+    - /healthz
     - /webhooks/validating
+    # - /metrics
+    # - /validate-token
+
+  server:
+    address: ""
+    port: 10443
 
   resyncPeriod: 10m
   resources:
@@ -82,9 +90,6 @@ runtime:
     enabled: false
     expirationSeconds: 1800
     audience: ""
-
-  # List with identifiers of the API. Tokens used against the API should be bound to at least one of these audiences.
-  apiAudiences: []
 
   additionalLabels:
     deployment: {}

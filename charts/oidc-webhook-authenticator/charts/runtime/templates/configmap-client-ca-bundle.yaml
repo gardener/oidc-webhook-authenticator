@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.auth.clientCABundle }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "oidc-webhook-authenticator.name" . }}-client-ca-bundle
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "oidc-webhook-authenticator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  bundle.crt: {{ toYaml .Values.auth.clientCABundle | indent 2 }}
+{{- end }}

@@ -9,6 +9,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -47,6 +48,7 @@ var (
 	clientset                                    *kubernetes.Clientset
 	ctx                                          = context.Background()
 	dumpLogs                                     = false
+	authWebhookClientCert                        tls.Certificate
 )
 
 const (
@@ -88,6 +90,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
+	clientCert := testEnv.OIDCClientCert()
+	authWebhookClientCert, err = tls.X509KeyPair(clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+	Expect(err).NotTo(HaveOccurred())
+
 	apiServerSecurePort, err = strconv.Atoi(testEnv.Environment.ControlPlane.GetAPIServer().SecureServing.Port)
 	Expect(err).NotTo(HaveOccurred())
 	err = authenticationv1alpha1.AddToScheme(scheme.Scheme)
@@ -114,16 +120,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	ttl := int64((30 * time.Minute).Seconds())
-	resp, err := clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "kube-apiserver", &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			ExpirationSeconds: &ttl,
-		},
-	}, metav1.CreateOptions{})
-
-	Expect(err).NotTo(HaveOccurred())
-
-	apiserverToken = resp.Status.Token
-
 	defaultServiceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
@@ -133,7 +129,7 @@ var _ = BeforeSuite(func() {
 	_, err = clientset.CoreV1().ServiceAccounts("default").Create(ctx, defaultServiceAccount, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
-	resp, err = clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "default", &authenticationv1.TokenRequest{
+	resp, err := clientset.CoreV1().ServiceAccounts("default").CreateToken(ctx, "default", &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{
 			ExpirationSeconds: &ttl,
 		},
