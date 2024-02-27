@@ -1,6 +1,6 @@
 # OpenID Connect Webhook Authenticator for Kubernetes
+[![REUSE status](https://api.reuse.software/badge/github.com/gardener/oidc-webhook-authenticator)](https://api.reuse.software/info/github.com/gardener/oidc-webhook-authenticator)
 
-[![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
 
 ## Table of content
 
