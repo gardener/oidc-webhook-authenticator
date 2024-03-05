@@ -31,7 +31,6 @@ import (
 	"k8s.io/apiserver/pkg/authentication/request/x509"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/cli/globalflag"
 	"k8s.io/component-base/version/verflag"
