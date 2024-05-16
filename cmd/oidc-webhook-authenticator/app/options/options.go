@@ -109,7 +109,7 @@ func (s *resyncPeriod) AddFlags(fs *pflag.FlagSet) {
 		return
 	}
 
-	fs.DurationVar(&s.Duration, "resync-period", time.Minute*10, "resync period")
+	fs.DurationVar(&s.Duration, "resync-period", 30*time.Minute, "resync period")
 }
 
 func (s *resyncPeriod) ApplyTo(c *resyncPeriod) error {
