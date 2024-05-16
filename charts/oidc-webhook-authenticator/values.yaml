@@ -75,7 +75,7 @@ runtime:
     address: ""
     port: 10443
 
-  resyncPeriod: 10m
+  resyncPeriod: 30m
   resources:
     requests:
       cpu: 100m
