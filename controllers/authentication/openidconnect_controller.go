@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apiserver/pkg/apis/apiserver"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
@@ -120,40 +121,66 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	opts := oidc.Options{
-		CAContentProvider:    caBundle,
-		ClientID:             config.Spec.ClientID,
-		KeySet:               keySet,
-		IssuerURL:            config.Spec.IssuerURL,
-		RequiredClaims:       config.Spec.RequiredClaims,
-		SupportedSigningAlgs: algs,
-	}
-
-	if config.Spec.GroupsClaim != nil {
-		opts.GroupsClaim = *config.Spec.GroupsClaim
-	}
+	var (
+		groupsPrefix   string
+		usernamePrefix string
+	)
 
 	if config.Spec.GroupsPrefix != nil && len(*config.Spec.GroupsPrefix) > 0 {
 		if *config.Spec.GroupsPrefix != authenticationv1alpha1.ClaimPrefixingDisabled {
-			opts.GroupsPrefix = *config.Spec.GroupsPrefix
+			groupsPrefix = *config.Spec.GroupsPrefix
 		}
 	} else {
-		opts.GroupsPrefix = config.Name + "/"
+		groupsPrefix = config.Name + "/"
+	}
+	if config.Spec.UsernamePrefix != nil && len(*config.Spec.UsernamePrefix) > 0 {
+		if *config.Spec.UsernamePrefix != authenticationv1alpha1.ClaimPrefixingDisabled {
+			usernamePrefix = *config.Spec.UsernamePrefix
+		}
+	} else {
+		usernamePrefix = config.Name + "/"
+	}
+
+	jwtAuthenticator := apiserver.JWTAuthenticator{
+		Issuer: apiserver.Issuer{
+			URL:       config.Spec.IssuerURL,
+			Audiences: []string{config.Spec.ClientID},
+		},
 	}
 
 	if config.Spec.UsernameClaim != nil {
-		opts.UsernameClaim = *config.Spec.UsernameClaim
-	}
-
-	if config.Spec.UsernamePrefix != nil && len(*config.Spec.UsernamePrefix) > 0 {
-		if *config.Spec.UsernamePrefix != authenticationv1alpha1.ClaimPrefixingDisabled {
-			opts.UsernamePrefix = *config.Spec.UsernamePrefix
+		jwtAuthenticator.ClaimMappings.Username = apiserver.PrefixedClaimOrExpression{
+			Prefix: &usernamePrefix,
+			Claim:  *config.Spec.UsernameClaim,
 		}
-	} else {
-		opts.UsernamePrefix = config.Name + "/"
 	}
 
-	auth, err := oidc.New(opts)
+	if config.Spec.GroupsClaim != nil {
+		jwtAuthenticator.ClaimMappings.Groups = apiserver.PrefixedClaimOrExpression{
+			Prefix: &groupsPrefix,
+			Claim:  *config.Spec.GroupsClaim,
+		}
+	}
+
+	if len(config.Spec.RequiredClaims) > 0 {
+		claimValidationRules := make([]apiserver.ClaimValidationRule, 0, len(config.Spec.RequiredClaims))
+		for claim, value := range config.Spec.RequiredClaims {
+			claimValidationRules = append(claimValidationRules, apiserver.ClaimValidationRule{
+				Claim:         claim,
+				RequiredValue: value,
+			})
+		}
+		jwtAuthenticator.ClaimValidationRules = claimValidationRules
+	}
+
+	opts := oidc.Options{
+		JWTAuthenticator:     jwtAuthenticator,
+		KeySet:               keySet,
+		SupportedSigningAlgs: algs,
+		CAContentProvider:    caBundle,
+	}
+
+	auth, err := oidc.New(ctx, opts)
 
 	if err != nil {
 		log.Error(err, "Invalid OIDC authenticator, removing it from store")
