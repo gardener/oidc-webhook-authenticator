@@ -77,4 +77,4 @@ test:
 
 .PHONY: cleanup-test-env
 cleanup-test-env:
-	@.hack/local/cleanup-test-env.sh
+	@hack/local/cleanup-test-env.sh

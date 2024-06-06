@@ -36,6 +36,8 @@ import (
 	"k8s.io/component-base/version/verflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -106,11 +108,15 @@ func run(ctx context.Context, opts *options.Config, setupLog logr.Logger) error 
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: "0",
-		Port:               0,
-		LeaderElection:     false,
-		CertDir:            "",
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port:    0,
+			CertDir: "",
+		}),
+		LeaderElection: false,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
