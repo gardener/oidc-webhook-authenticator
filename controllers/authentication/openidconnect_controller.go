@@ -211,9 +211,9 @@ func (r *OpenIDConnectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&authenticationv1alpha1.OpenIDConnect{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 50,
-			RateLimiter: workqueue.NewMaxOfRateLimiter(
-				workqueue.NewItemExponentialFailureRateLimiter(5*time.Second, time.Minute),
-				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
+			RateLimiter: workqueue.NewTypedMaxOfRateLimiter(
+				workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](5*time.Second, time.Minute),
+				&workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
 			),
 		}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
