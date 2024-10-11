@@ -63,10 +63,10 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(tempDir, "ca.crt"), caCertificate.CertificatePEM, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tempDir, "ca.crt"), caCertificate.CertificatePEM, 0600); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(tempDir, "ca.key"), caCertificate.PrivateKeyPEM, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tempDir, "ca.key"), caCertificate.PrivateKeyPEM, 0600); err != nil {
 			return err
 		}
 
@@ -88,10 +88,10 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(tempDir, "tls.crt"), certificate.CertificatePEM, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tempDir, "tls.crt"), certificate.CertificatePEM, 0600); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(tempDir, "tls.key"), certificate.PrivateKeyPEM, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tempDir, "tls.key"), certificate.PrivateKeyPEM, 0600); err != nil {
 			return err
 		}
 
@@ -136,7 +136,7 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 
 func (s *oidcWebhookServer) start() error {
 	s.exited = make(chan struct{})
-	command := exec.Command(s.Path, s.Args...)
+	command := exec.Command(s.Path, s.Args...) //nolint:gosec
 	session, err := gexec.Start(command, s.Out, s.Err)
 	if err != nil {
 		return err

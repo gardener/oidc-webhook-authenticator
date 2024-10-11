@@ -50,7 +50,7 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use: "oidc-webhook-authenticator",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, _ []string) {
 			verflag.PrintAndExitIfRequested()
 			cliflag.PrintFlags(cmd.Flags())
 
@@ -70,7 +70,7 @@ func NewOIDCWebhookAuthenticatorCommand(ctx context.Context) *cobra.Command {
 				os.Exit(1)
 			}
 		},
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(_ *cobra.Command, _ []string) error {
 			var err error
 
 			errors := opt.Validate()
@@ -251,7 +251,7 @@ type noOpAuthenticator struct{}
 
 var _ authenticator.Request = (*noOpAuthenticator)(nil)
 
-func (a *noOpAuthenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
+func (a *noOpAuthenticator) AuthenticateRequest(_ *http.Request) (*authenticator.Response, bool, error) {
 	return nil, true, nil
 }
 

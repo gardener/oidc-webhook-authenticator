@@ -23,9 +23,15 @@ type handler struct {
 	failHandler http.Handler
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+var _ http.Handler = (*handler)(nil)
 
+// ServeHTTP handles http requests.
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			h.log.Error(err, "failed closing body")
+		}
+	}()
 	timer := metrics.NewTimerForTokenValidationRequest()
 	defer timer.ObserveDuration()
 
@@ -81,6 +87,7 @@ type Webhook struct {
 	Log           logr.Logger
 }
 
+// Build returns an [http.Handler] that can authenticate requests.
 func (wh *Webhook) Build() http.Handler {
 	return &handler{
 		Token:       wh.Authenticator,

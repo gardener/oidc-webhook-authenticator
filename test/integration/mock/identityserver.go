@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -35,6 +36,7 @@ const (
 }`
 )
 
+// OIDCIdentityServer represents an identity server used for testing.
 type OIDCIdentityServer struct {
 	Name             string
 	certificate      *utils.Certificate
@@ -45,6 +47,7 @@ type OIDCIdentityServer struct {
 	ServerSecurePort int
 }
 
+// NewIdentityServer returns a new identity server.
 func NewIdentityServer(name string, numberOfPrivateKeys int) (*OIDCIdentityServer, error) {
 	caCertificateConfig := &utils.CertConfig{
 		Name:       name,
@@ -104,10 +107,12 @@ func NewIdentityServer(name string, numberOfPrivateKeys int) (*OIDCIdentityServe
 	}, nil
 }
 
+// Start starts the identity server.
 func (idp *OIDCIdentityServer) Start() error {
 	return idp.start(0)
 }
 
+// StartWithMaxTLSVersion configures the identity server with max TLS version and starts it.
 func (idp *OIDCIdentityServer) StartWithMaxTLSVersion(version uint16) error {
 	return idp.start(version)
 }
@@ -121,13 +126,13 @@ func (idp *OIDCIdentityServer) start(version uint16) error {
 	idp.certDir = certDir
 
 	certFile := filepath.Join(certDir, "tls.crt")
-	err = os.WriteFile(certFile, idp.certificate.CertificatePEM, 0640)
+	err = os.WriteFile(certFile, idp.certificate.CertificatePEM, 0600)
 	if err != nil {
 		return err
 	}
 
 	keyFile := filepath.Join(certDir, "tls.key")
-	err = os.WriteFile(keyFile, idp.certificate.PrivateKeyPEM, 0640)
+	err = os.WriteFile(keyFile, idp.certificate.PrivateKeyPEM, 0600)
 	if err != nil {
 		return err
 	}
@@ -138,14 +143,21 @@ func (idp *OIDCIdentityServer) start(version uint16) error {
 	}
 	idp.ServerSecurePort = port
 
-	var tlsConf *tls.Config = nil
+	var tlsConf *tls.Config
 	if version != 0 {
 		tlsConf = &tls.Config{
 			MaxVersion: version,
+			MinVersion: tls.VersionTLS12,
 		}
 	}
 
-	idp.server = &http.Server{Addr: fmt.Sprintf("localhost:%v", port), Handler: idp.buildHandler(), TLSConfig: tlsConf}
+	idp.server = &http.Server{
+		Addr:         fmt.Sprintf("localhost:%v", port),
+		Handler:      idp.buildHandler(),
+		TLSConfig:    tlsConf,
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
+	}
 
 	go func() {
 		if err := idp.server.ListenAndServeTLS(certFile, keyFile); err != http.ErrServerClosed {
@@ -155,6 +167,7 @@ func (idp *OIDCIdentityServer) start(version uint16) error {
 	return nil
 }
 
+// Stop stops the identity server.
 func (idp *OIDCIdentityServer) Stop(ctx context.Context) error {
 	err := idp.server.Shutdown(ctx)
 	if err != nil {
@@ -179,17 +192,17 @@ func (idp *OIDCIdentityServer) buildHandler() http.Handler {
 }
 
 func (idp *OIDCIdentityServer) buildWellKnownHandler() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		host := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 		wellKnown := fmt.Sprintf(wellKnownResponseTemplate, host)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		w.Write([]byte(wellKnown))
+		w.Write([]byte(wellKnown)) //nolint:errcheck,gosec
 	}
 }
 
-func (idp *OIDCIdentityServer) buildJWKSHandler() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (idp *OIDCIdentityServer) buildJWKSHandler() func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		jwks, err := json.Marshal(idp.publicWebKeySet)
 		if err != nil {
 			w.WriteHeader(500)
@@ -198,7 +211,7 @@ func (idp *OIDCIdentityServer) buildJWKSHandler() func(w http.ResponseWriter, r 
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		w.Write(jwks)
+		w.Write(jwks) //nolint:errcheck,gosec
 	}
 }
 
@@ -222,6 +235,7 @@ func suggestLocalPort() (int, error) {
 	return port, nil
 }
 
+// Sign signs the passed claims with the private key corresponding to the passed index.
 func (idp *OIDCIdentityServer) Sign(idx int, claims interface{}) (string, error) {
 	if idx < 0 || idx >= len(idp.privateKeys) {
 		return "", fmt.Errorf("index out of boundaries")
@@ -242,10 +256,12 @@ func (idp *OIDCIdentityServer) Sign(idx int, claims interface{}) (string, error)
 	return token, nil
 }
 
+// CA return the certificate authority used to sign the certificate of the identity server.
 func (idp *OIDCIdentityServer) CA() []byte {
 	return idp.certificate.CA.CertificatePEM
 }
 
+// PublicKeySetAsBytes returns the
 func (idp *OIDCIdentityServer) PublicKeySetAsBytes() ([]byte, error) {
 	jwks, err := json.Marshal(idp.publicWebKeySet)
 	if err != nil {
