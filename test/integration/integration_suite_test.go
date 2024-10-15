@@ -40,7 +40,6 @@ import (
 
 var (
 	apiServerSecurePort                          int
-	apiserverToken                               string
 	defaultServiceAccountToken                   string
 	testEnv                                      *oidctestenv.OIDCWebhookTestEnvironment
 	oidcOut, oidcErr, apiserverOut, apiserverErr bytes.Buffer
@@ -147,7 +146,7 @@ var _ = AfterSuite(func() {
 
 		dumpFn := func(filename string, bytes []byte, perm fs.FileMode) {
 			if len(bytes) > 0 {
-				os.WriteFile(filename, bytes, perm)
+				Expect(os.WriteFile(filename, bytes, perm)).To(Succeed())
 			}
 		}
 

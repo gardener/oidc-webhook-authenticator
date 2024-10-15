@@ -50,6 +50,7 @@ type OpenIDConnectReconciler struct {
 
 // +kubebuilder:rbac:groups=authentication.gardener.cloud,resources=openidconnects,verbs=get;list;watch
 
+// Reconcile reconciles an OIDC object and registers the corresponding authenticator.
 func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("openidconnect", req.Name)
 
@@ -111,7 +112,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	} else {
 		// retrieve the JWKS keySet from the jwksURL endpoint
-		keySet, err = remoteKeySet(ctx, config.Spec.IssuerURL, config.Spec.CABundle)
+		keySet, err = remoteKeySet(ctx, r.log, config.Spec.IssuerURL, config.Spec.CABundle)
 		if err != nil {
 			log.Error(err, "Invalid remote JWKS KeySet")
 
@@ -382,7 +383,7 @@ type staticKeySet struct {
 }
 
 // VerifySignature validates the signature of the JWT using static JWKs and returns the payload.
-func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (s staticKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt)
 	if err != nil {
 		return nil, err
@@ -404,7 +405,7 @@ func (s staticKeySet) VerifySignature(ctx context.Context, jwt string) (payload 
 // remoteKeySet uses HTTP GET to discover the JWKs URL of the issuer
 // and returns a KeySet that can validate JSON web tokens by fetching
 // JSON web token sets hosted at that remote URL.
-func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.KeySet, error) {
+func remoteKeySet(ctx context.Context, log logr.Logger, issuer string, cabundle []byte) (gooidc.KeySet, error) {
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 
 	var caCertPool *x509.CertPool
@@ -438,7 +439,11 @@ func remoteKeySet(ctx context.Context, issuer string, cabundle []byte) (gooidc.K
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error(err, "failed closing response body")
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

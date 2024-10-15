@@ -30,7 +30,7 @@ type mockAuthenticator struct {
 	err             error
 }
 
-func (mock *mockAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+func (mock *mockAuthenticator) AuthenticateToken(_ context.Context, _ string) (*authenticator.Response, bool, error) {
 	return &mock.response, mock.isAuthenticated, mock.err
 }
 

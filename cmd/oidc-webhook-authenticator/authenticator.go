@@ -22,9 +22,10 @@ func main() {
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 	// utilflag.InitFlags()
 	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	if err := cmd.Execute(); err != nil {
+		logs.FlushLogs()
 		os.Exit(1)
 	}
+	logs.FlushLogs()
 }

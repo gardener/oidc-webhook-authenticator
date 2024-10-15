@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	. "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 )
@@ -32,7 +32,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should not default username claim if explicitly set", func() {
-			oidc.Spec.UsernameClaim = pointer.StringPtr("someuserclaim")
+			oidc.Spec.UsernameClaim = ptr.To("someuserclaim")
 			oidc.Default()
 			Expect(*oidc.Spec.UsernameClaim).To(Equal("someuserclaim"))
 		})
@@ -43,7 +43,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should not default groups claim if explicitly set", func() {
-			oidc.Spec.GroupsClaim = pointer.StringPtr("somegroupsclaim")
+			oidc.Spec.GroupsClaim = ptr.To("somegroupsclaim")
 			oidc.Default()
 			Expect(*oidc.Spec.GroupsClaim).To(Equal("somegroupsclaim"))
 		})
@@ -285,7 +285,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		)
 
 		It("should return error for negative maxTokenExpirationSeconds", func() {
-			oidc.Spec.MaxTokenExpirationSeconds = pointer.Int64(-1)
+			oidc.Spec.MaxTokenExpirationSeconds = ptr.To[int64](-1)
 			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: -1: should be positive"))
@@ -293,7 +293,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should return error for zero maxTokenExpirationSeconds", func() {
-			oidc.Spec.MaxTokenExpirationSeconds = pointer.Int64(0)
+			oidc.Spec.MaxTokenExpirationSeconds = ptr.To[int64](0)
 			warnings, err := oidc.ValidateCreate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("maxTokenExpirationSeconds: Invalid value: 0: should be positive"))

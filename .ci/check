@@ -24,3 +24,8 @@ curl -s "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3" 
 
 echo "> Lint helm charts"
 make helm-lint
+
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$(go env GOPATH)"/bin v1.61.0
+
+echo "> Running golangci-lint"
+golangci-lint run --config ./.golangci.yaml --timeout 10m  ./...
