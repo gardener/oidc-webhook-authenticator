@@ -44,7 +44,9 @@ func WithAllowedMethod(method string, next http.Handler) http.Handler {
 		if r.Method != method {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			w.Write([]byte(`{"code":405,"message":"method not allowed"}`)) //nolint:errcheck,gosec
+			if _, err := w.Write([]byte(`{"code":405,"message":"method not allowed"}`)); err != nil {
+				ctrl.Log.Error(err, "unable to write to response")
+			}
 			return
 		}
 		next.ServeHTTP(w, r)
