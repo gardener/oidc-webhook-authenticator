@@ -1,0 +1,19 @@
+run:
+  concurrency: 4
+  deadline: 10m
+
+linters:
+  enable:
+  - gocritic
+  - gosec
+  - revive
+
+issues:
+  exclude-use-default: false
+  exclude:
+  # - var-naming # ((var|const|struct field|func) .* should be .*
+  - dot-imports # should not use dot imports
+  - "exported: (type|func) name will be used as .* by other packages, and that stutters;"
+  - indent-error-flow # if block ends with a return statement, so drop this else and outdent its block
+  - package-comments
+  exclude-rules: []

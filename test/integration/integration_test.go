@@ -28,7 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
@@ -156,7 +156,9 @@ var _ = Describe("Integration", func() {
 
 		makeAPIServerRequestAndExpectCode := func(userToken string, expectedStatusCode int) {
 			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, //nolint:gosec
+				},
 			}
 			client := &http.Client{Transport: tr}
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%v/api/v1/namespaces/default/pods", apiServerSecurePort), nil)
@@ -543,9 +545,12 @@ var _ = Describe("Integration", func() {
 				}
 
 				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{RootCAs: caCertPool, Certificates: []tls.Certificate{
-						authWebhookClientCert,
-					}},
+					TLSClientConfig: &tls.Config{
+						RootCAs:    caCertPool,
+						MinVersion: tls.VersionTLS12,
+						Certificates: []tls.Certificate{
+							authWebhookClientCert,
+						}},
 				}
 				client := &http.Client{Transport: tr}
 				body, err := json.Marshal(review)
@@ -609,7 +614,10 @@ var _ = Describe("Integration", func() {
 			}
 
 			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+				TLSClientConfig: &tls.Config{
+					RootCAs:    caCertPool,
+					MinVersion: tls.VersionTLS12,
+				},
 			}
 			client := &http.Client{Transport: tr}
 			body, err := json.Marshal(review)
@@ -630,7 +638,10 @@ var _ = Describe("Integration", func() {
 			caCertPool := x509.NewCertPool()
 			caCertPool.AppendCertsFromPEM(testEnv.OIDCServerCA())
 			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+				TLSClientConfig: &tls.Config{
+					RootCAs:    caCertPool,
+					MinVersion: tls.VersionTLS12,
+				},
 			}
 			client := &http.Client{Transport: tr}
 			req, err := http.NewRequest("GET", "https://localhost:10443/healthz", nil)
@@ -1529,7 +1540,7 @@ var _ = Describe("Integration", func() {
 			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
-			provider.Spec.MaxTokenExpirationSeconds = pointer.Int64(60)
+			provider.Spec.MaxTokenExpirationSeconds = ptr.To[int64](60)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
 			user := "this-is-my-identity"
@@ -1553,7 +1564,7 @@ var _ = Describe("Integration", func() {
 			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
-			provider.Spec.MaxTokenExpirationSeconds = pointer.Int64(60 * 20)
+			provider.Spec.MaxTokenExpirationSeconds = ptr.To[int64](60 * 20)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
 			user := "this-is-my-identity"
@@ -1578,7 +1589,7 @@ var _ = Describe("Integration", func() {
 			defer stopIDP(ctx, idp)
 
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
-			provider.Spec.MaxTokenExpirationSeconds = pointer.Int64(60 * 20)
+			provider.Spec.MaxTokenExpirationSeconds = ptr.To[int64](60 * 20)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
 			user := "this-is-my-identity"
@@ -1774,7 +1785,7 @@ func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client
 	}, timeout, interval).Should(BeTrue())
 }
 
-func defaultOIDCProvider(issuerUrl string, caBundle []byte) *authenticationv1alpha1.OpenIDConnect {
+func defaultOIDCProvider(issuerURL string, caBundle []byte) *authenticationv1alpha1.OpenIDConnect {
 	name := rand.String(5)
 	defaultUsernameClaim := "sub"
 	defaultGroupsClaim := "groups"
@@ -1790,7 +1801,7 @@ func defaultOIDCProvider(issuerUrl string, caBundle []byte) *authenticationv1alp
 			ClientID:      "my-idp-provider",
 			JWKS:          authenticationv1alpha1.JWKSSpec{},
 			CABundle:      caBundle,
-			IssuerURL:     issuerUrl,
+			IssuerURL:     issuerURL,
 			UsernameClaim: &defaultUsernameClaim,
 			GroupsClaim:   &defaultGroupsClaim,
 		},

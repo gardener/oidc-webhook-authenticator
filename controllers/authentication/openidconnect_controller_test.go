@@ -20,6 +20,7 @@ import (
 	"time"
 
 	mock "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -28,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
@@ -39,7 +40,7 @@ type mockAuthRequestHandler struct {
 	err             error
 }
 
-func (mock *mockAuthRequestHandler) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+func (mock *mockAuthRequestHandler) AuthenticateToken(_ context.Context, _ string) (*authenticator.Response, bool, error) {
 	return &authenticator.Response{User: mock.returnUser}, mock.isAuthenticated, mock.err
 }
 
@@ -50,7 +51,7 @@ func stopIDP(ctx context.Context, idp *mock.OIDCIdentityServer) {
 
 var _ = Describe("OpenIDConnect controller", func() {
 	ctx := context.Background()
-
+	log := logr.Discard()
 	sign := func(claims map[string]interface{}) (string, error) {
 		privateKey := jose.JSONWebKey{}
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -593,7 +594,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					}
 
 					Eventually(func() bool {
-						keySet, err := remoteKeySet(ctx, fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
+						keySet, err := remoteKeySet(ctx, log, fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), nil)
 						if err == nil {
 							return false
 						}
@@ -610,7 +611,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				It("request should succeed", func() {
 					serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 					Eventually(func() bool {
-						keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+						keySet, err := remoteKeySet(ctx, log, serverURL, idp.CA())
 						if err != nil {
 							return false
 						}
@@ -621,7 +622,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				It("request should succeed and token should be verified without errors", func() {
 					serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 					Eventually(func() bool {
-						keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+						keySet, err := remoteKeySet(ctx, log, serverURL, idp.CA())
 						if err != nil {
 							return false
 						}
@@ -650,7 +651,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					requestedURL := fmt.Sprintf("https://localhost:%v/", idp.ServerSecurePort)
 					serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 					Eventually(func() bool {
-						keySet, err := remoteKeySet(ctx, requestedURL, idp.CA())
+						keySet, err := remoteKeySet(ctx, log, requestedURL, idp.CA())
 						if err != nil {
 							expectedError := fmt.Sprintf(`oidc: issuer did not match the issuer returned by provider, expected "%s/" got "%s"`, serverURL, serverURL)
 							return keySet == nil && err.Error() == expectedError
@@ -676,8 +677,8 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Expect(fulfilled).To(BeTrue())
 		},
 
-		Entry("token issued for the exact max validity seconds", int64(10), pointer.Int64(10)),
-		Entry("token issued for less than the max validity seconds", int64(10), pointer.Int64(50)),
+		Entry("token issued for the exact max validity seconds", int64(10), ptr.To[int64](10)),
+		Entry("token issued for less than the max validity seconds", int64(10), ptr.To[int64](50)),
 		Entry("no max validity seconds configured", int64(10), nil),
 	)
 
@@ -696,10 +697,10 @@ var _ = Describe("OpenIDConnect controller", func() {
 			Expect(err.Error()).To(Equal(expectedError))
 		},
 
-		Entry("max validity seconds is negative", int64(10), pointer.Int64(-1), "max validity seconds of a token should not be negative"),
-		Entry("token exp is before iat", int64(-1), pointer.Int64(20), "iat is equal or greater than exp claim"),
-		Entry("token exp is the exact iat", int64(0), pointer.Int64(20), "iat is equal or greater than exp claim"),
-		Entry("token issued for greater validity than the allowed", int64(20), pointer.Int64(10), "token is issued with greater validity than the max allowed"),
+		Entry("max validity seconds is negative", int64(10), ptr.To[int64](-1), "max validity seconds of a token should not be negative"),
+		Entry("token exp is before iat", int64(-1), ptr.To[int64](20), "iat is equal or greater than exp claim"),
+		Entry("token exp is the exact iat", int64(0), ptr.To[int64](20), "iat is equal or greater than exp claim"),
+		Entry("token issued for greater validity than the allowed", int64(20), ptr.To[int64](10), "token is issued with greater validity than the max allowed"),
 	)
 
 	Describe("Check token expiration validity requirements (special cases)", func() {
@@ -710,7 +711,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				"exp": now.Add(time.Second * 10).Unix(),
 			})
 			Expect(err).NotTo(HaveOccurred())
-			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			fulfilled, err := areExpirationRequirementsFulfilled(token, ptr.To[int64](10))
 			Expect(err).To(HaveOccurred())
 			Expect(fulfilled).To(BeFalse())
 			Expect(err.Error()).To(Equal("cannot retrieve iat claim"))
@@ -723,7 +724,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				"iat": now.Unix(),
 			})
 			Expect(err).NotTo(HaveOccurred())
-			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			fulfilled, err := areExpirationRequirementsFulfilled(token, ptr.To[int64](10))
 			Expect(err).To(HaveOccurred())
 			Expect(fulfilled).To(BeFalse())
 			Expect(err.Error()).To(Equal("cannot retrieve exp claim"))
@@ -737,7 +738,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				"iat": -1,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			fulfilled, err := areExpirationRequirementsFulfilled(token, ptr.To[int64](10))
 			Expect(err).To(HaveOccurred())
 			Expect(fulfilled).To(BeFalse())
 			Expect(err.Error()).To(Equal("iat claim value should be positive"))
@@ -751,14 +752,14 @@ var _ = Describe("OpenIDConnect controller", func() {
 				"iat": now.Unix(),
 			})
 			Expect(err).NotTo(HaveOccurred())
-			fulfilled, err := areExpirationRequirementsFulfilled(token, pointer.Int64(10))
+			fulfilled, err := areExpirationRequirementsFulfilled(token, ptr.To[int64](10))
 			Expect(err).To(HaveOccurred())
 			Expect(fulfilled).To(BeFalse())
 			Expect(err.Error()).To(Equal("exp claim value should be positive"))
 		})
 
 		It("should fail because the passed argument is not a jwt", func() {
-			fulfilled, err := areExpirationRequirementsFulfilled("notajwt", pointer.Int64(10))
+			fulfilled, err := areExpirationRequirementsFulfilled("notajwt", ptr.To[int64](10))
 			Expect(err).To(HaveOccurred())
 			Expect(fulfilled).To(BeFalse())
 			Expect(err.Error()).To(Equal("cannot parse jwt token"))
@@ -775,7 +776,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 			serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			Eventually(func() bool {
-				keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+				keySet, err := remoteKeySet(ctx, log, serverURL, idp.CA())
 				if err != nil {
 					expectedError := fmt.Sprintf(`Get "%s/.well-known/openid-configuration": remote error: tls: protocol version not supported`, serverURL)
 					fmt.Println(err.Error())
@@ -794,7 +795,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 			serverURL := fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			Eventually(func() bool {
-				keySet, err := remoteKeySet(ctx, serverURL, idp.CA())
+				keySet, err := remoteKeySet(ctx, log, serverURL, idp.CA())
 				if err != nil {
 					return false
 				}

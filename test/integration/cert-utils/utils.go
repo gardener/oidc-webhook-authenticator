@@ -33,6 +33,7 @@ const (
 	ServerClientCert string = "both"
 )
 
+// CertConfig contains configurations depending on which a certificate can be generated.
 type CertConfig struct {
 	Name string
 
@@ -47,6 +48,7 @@ type CertConfig struct {
 	PKCS      int
 }
 
+// Certificate contains a [x509.Certificate].
 type Certificate struct {
 	Name string
 
@@ -59,6 +61,7 @@ type Certificate struct {
 	CertificatePEM []byte
 }
 
+// GenerateCertificate generates a certificate depending on the provided certificate configuration.
 func (s *CertConfig) GenerateCertificate() (*Certificate, error) {
 	certificateObj := &Certificate{
 		Name: s.Name,

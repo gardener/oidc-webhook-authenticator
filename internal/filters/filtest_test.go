@@ -20,13 +20,14 @@ type mockAuth struct {
 	authenticated bool
 }
 
-func (a *mockAuth) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
+func (a *mockAuth) AuthenticateRequest(_ *http.Request) (*authenticator.Response, bool, error) {
 	return nil, a.authenticated, a.err
 }
 
 var _ = Describe("Filters", func() {
-	testHandler := func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+	testHandler := func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("ok"))
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	Context("Authentication filter", func() {

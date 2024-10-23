@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
+// OIDCWebhookTestEnvironment represents a testing environment that runs oidc-webhook-authenticator server.
 type OIDCWebhookTestEnvironment struct {
 	*envtest.Environment
 
@@ -103,7 +104,7 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 		return nil, err
 	}
 
-	err = os.WriteFile(authKubeconfigPath, authKubeconfig, 0640)
+	err = os.WriteFile(authKubeconfigPath, authKubeconfig, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +134,7 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 	}
 
 	kubeconfigFile := filepath.Join(e.oidcWebhookServer.KubeconfigDir, "kubeconfig.yaml")
-	err = os.WriteFile(kubeconfigFile, kubeconfigBytes, 0640)
+	err = os.WriteFile(kubeconfigFile, kubeconfigBytes, 0600)
 	if err != nil {
 		return nil, err
 	}

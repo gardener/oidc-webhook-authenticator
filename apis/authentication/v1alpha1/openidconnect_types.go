@@ -187,6 +187,7 @@ const (
 	SystemPrefix = "system:"
 )
 
+// OIDCAuthenticationStatus is the status of a OpenIDConnect resource.
 type OIDCAuthenticationStatus struct{}
 
 func init() {

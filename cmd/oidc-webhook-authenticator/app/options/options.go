@@ -44,6 +44,7 @@ func (s *ServingOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.UintVar(&s.Port, "port", 10443, "The port that the server will listen on.")
 }
 
+// Validate validates the serving options.
 func (s *ServingOptions) Validate() []error {
 	errs := []error{}
 	if strings.TrimSpace(s.TLSCertFile) == "" {
@@ -57,8 +58,9 @@ func (s *ServingOptions) Validate() []error {
 	return errs
 }
 
+// ApplyTo applies the serving options to the authentication server configuration.
 func (s *ServingOptions) ApplyTo(c *AuthServerConfig) error {
-	c.Address = fmt.Sprintf("%s:%s", s.Address, strconv.Itoa(int(s.Port)))
+	c.Address = fmt.Sprintf("%s:%s", s.Address, strconv.FormatUint(uint64(s.Port), 10))
 	serverCert, err := tls.LoadX509KeyPair(s.TLSCertFile, s.TLSKeyFile)
 	if err != nil {
 		return fmt.Errorf("failed to parse authentication server certificates: %w", err)
@@ -146,6 +148,7 @@ type Config struct {
 	AuthServerConfig AuthServerConfig
 }
 
+// AuthServerConfig contains the configuration for the OIDC Authenticator Server.
 type AuthServerConfig struct {
 	TLSConfig                      *tls.Config
 	Address                        string

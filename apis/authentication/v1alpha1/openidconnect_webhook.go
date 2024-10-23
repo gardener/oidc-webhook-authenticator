@@ -69,7 +69,7 @@ func (r *OpenIDConnect) ValidateCreate() (admission.Warnings, error) {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *OpenIDConnect) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+func (r *OpenIDConnect) ValidateUpdate(_ runtime.Object) (admission.Warnings, error) {
 	openidconnectlog.Info("validate update", "name", r.Name)
 
 	return nil, r.validate().ToAggregate()
