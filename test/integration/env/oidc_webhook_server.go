@@ -136,7 +136,7 @@ func (s *oidcWebhookServer) configureDefaults(rootDir string) error {
 
 func (s *oidcWebhookServer) start() error {
 	s.exited = make(chan struct{})
-	command := exec.Command(s.Path, s.Args...) //nolint:gosec
+	command := exec.Command(s.Path, s.Args...) // #nosec G204
 	session, err := gexec.Start(command, s.Out, s.Err)
 	if err != nil {
 		return err
