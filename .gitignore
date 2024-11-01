@@ -27,3 +27,6 @@ dive.log
 /tmp
 
 /helm-templates
+
+# gosec
+gosec-report.sarif

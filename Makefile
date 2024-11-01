@@ -53,6 +53,14 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: sast ## Run Static Application Security Testing scan with gosec
+sast:
+	@./hack/sast.sh
+
+.PHONY: sast-report ## Run Static Application Security Testing scan with gosec and write report to `gosec-report.sarif`
+sast-report:
+	@./hack/sast.sh --gosec-report true
+
 start-dev-container: tools-image ## Run go vet against code.
 	docker run --rm --tty --interactive --name=odic-dev-container -v $(shell pwd):/workspace --workdir /workspace tools:latest /bin/bash
 

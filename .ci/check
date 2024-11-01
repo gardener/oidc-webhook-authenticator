@@ -20,6 +20,11 @@ cd "${SOURCE_PATH}"
 go vet ./...
 go fmt ./...
 
+go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
+
+echo "> Run SAST scan"
+make sast
+
 curl -s "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3" | bash -s -- --version 'v3.5.4'
 
 echo "> Lint helm charts"
