@@ -197,6 +197,7 @@ func (idp *OIDCIdentityServer) buildWellKnownHandler() func(w http.ResponseWrite
 		wellKnown := fmt.Sprintf(wellKnownResponseTemplate, host)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		//nolint:errcheck
 		w.Write([]byte(wellKnown)) // #nosec G104
 	}
 }
@@ -211,6 +212,7 @@ func (idp *OIDCIdentityServer) buildJWKSHandler() func(w http.ResponseWriter, _ 
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		//nolint:errcheck
 		w.Write(jwks) // #nosec G104
 	}
 }
