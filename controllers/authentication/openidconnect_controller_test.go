@@ -20,12 +20,12 @@ import (
 	"time"
 
 	mock "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	jose "gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -74,7 +74,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 		}
 
 		builder := jwt.Signed(signer)
-		token, err := builder.Claims(claims).CompactSerialize()
+		token, err := builder.Claims(claims).Serialize()
 		if err != nil {
 			return "", err
 		}
@@ -536,7 +536,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				It("verification should succeed", func() {
 					jwks, err := idp.PublicKeySetAsBytes()
 					Expect(err).NotTo(HaveOccurred())
-					staticKeySet, err := newStaticKeySet(jwks)
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS256"})
 					Expect(err).NotTo(HaveOccurred())
 					Expect(staticKeySet).NotTo(BeNil())
 
@@ -563,7 +563,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					jwks, err := idp.PublicKeySetAsBytes()
 					Expect(err).NotTo(HaveOccurred())
 
-					staticKeySet, err := newStaticKeySet(jwks)
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS256"})
 					Expect(err).NotTo(HaveOccurred())
 					Expect(staticKeySet).NotTo(BeNil())
 
@@ -576,6 +576,32 @@ var _ = Describe("OpenIDConnect controller", func() {
 					payload, err := staticKeySet.VerifySignature(ctx, token)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(ContainSubstring("no keys matches jwk keyid"))
+					Expect(payload).To(BeNil())
+				})
+
+				It("verification should fail because of not supported signature algorithm", func() {
+					idp1, err := mock.NewIdentityServer("test-idp", 1)
+					Expect(err).NotTo(HaveOccurred())
+					err = idp1.Start()
+					Expect(err).NotTo(HaveOccurred())
+					defer stopIDP(ctx, idp1)
+
+					jwks, err := idp.PublicKeySetAsBytes()
+					Expect(err).NotTo(HaveOccurred())
+
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS384"})
+					Expect(err).NotTo(HaveOccurred())
+					Expect(staticKeySet).NotTo(BeNil())
+
+					claims := map[string]interface{}{
+						"someclaim": "somevalue",
+					}
+					token, err := idp1.Sign(0, claims)
+					Expect(err).NotTo(HaveOccurred())
+
+					payload, err := staticKeySet.VerifySignature(ctx, token)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("go-jose/go-jose: unexpected signature algorithm \"RS256\"; expected [\"RS384\"]"))
 					Expect(payload).To(BeNil())
 				})
 			})
