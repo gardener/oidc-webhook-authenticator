@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 
 	utils "github.com/gardener/oidc-webhook-authenticator/test/integration/cert-utils"
 )
@@ -250,7 +250,7 @@ func (idp *OIDCIdentityServer) Sign(idx int, claims interface{}) (string, error)
 	}
 
 	builder := jwt.Signed(signer)
-	token, err := builder.Claims(claims).CompactSerialize()
+	token, err := builder.Claims(claims).Serialize()
 	if err != nil {
 		return "", err
 	}

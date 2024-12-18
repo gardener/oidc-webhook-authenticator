@@ -19,9 +19,9 @@ import (
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-logr/logr"
 	"golang.org/x/time/rate"
-	jose "gopkg.in/square/go-jose.v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -100,7 +100,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	var keySet gooidc.KeySet
 
 	if len(config.Spec.JWKS.Keys) != 0 {
-		keySet, err = newStaticKeySet(config.Spec.JWKS.Keys)
+		keySet, err = newStaticKeySet(config.Spec.JWKS.Keys, algs)
 		if err != nil {
 			log.Error(err, "Invalid static JWKS KeySet")
 
@@ -379,12 +379,13 @@ type providerJSON struct {
 
 // staticKeySet implements gooidc.KeySet.
 type staticKeySet struct {
-	keys []jose.JSONWebKey
+	keys                []jose.JSONWebKey
+	signatureAlgorithms []jose.SignatureAlgorithm
 }
 
 // VerifySignature validates the signature of the JWT using static JWKs and returns the payload.
 func (s staticKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt)
+	jws, err := jose.ParseSigned(jwt, s.signatureAlgorithms)
 	if err != nil {
 		return nil, err
 	}
@@ -469,13 +470,17 @@ func remoteKeySet(ctx context.Context, log logr.Logger, issuer string, cabundle 
 }
 
 // newStaticKeySet returns a KeySet that can validate JSON web tokens.
-func newStaticKeySet(jwks []byte) (gooidc.KeySet, error) {
+func newStaticKeySet(jwks []byte, algs []string) (gooidc.KeySet, error) {
 	pubKeys, err := loadKey(jwks)
 	if err != nil {
 		return nil, err
 	}
 
-	return &staticKeySet{keys: pubKeys}, nil
+	signatureAlgorithms := make([]jose.SignatureAlgorithm, 0, len(algs))
+	for _, a := range algs {
+		signatureAlgorithms = append(signatureAlgorithms, jose.SignatureAlgorithm(a))
+	}
+	return &staticKeySet{keys: pubKeys, signatureAlgorithms: signatureAlgorithms}, nil
 }
 
 func unmarshalResp(r *http.Response, body []byte, v interface{}) error {

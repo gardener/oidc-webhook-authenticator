@@ -9,15 +9,30 @@ import (
 	"errors"
 	"fmt"
 
-	jwt "gopkg.in/square/go-jose.v2/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	jwt "github.com/go-jose/go-jose/v4/jwt"
 )
+
+// allowedAlgorithms contains the algorithms that is currently validated against.
+// Keep in sync with apis/authentication/v1alpha1/openidconnect_webhook.go@allowedSigningAlgs
+var allowedAlgorithms = []jose.SignatureAlgorithm{
+	jose.RS256,
+	jose.RS384,
+	jose.RS512,
+	jose.ES256,
+	jose.ES384,
+	jose.ES512,
+	jose.PS256,
+	jose.PS384,
+	jose.PS512,
+}
 
 func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, error) {
 	if len(extraClaims) == 0 {
 		return nil, nil
 	}
 
-	token, err := jwt.ParseSigned(tokenStr)
+	token, err := jwt.ParseSigned(tokenStr, allowedAlgorithms)
 	if err != nil {
 		return nil, errors.New("cannot parse jwt token")
 	}
@@ -51,7 +66,7 @@ func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, 
 
 func getIssuerURL(token string) (string, error) {
 	var claims map[string]interface{}
-	tok, err := jwt.ParseSigned(token)
+	tok, err := jwt.ParseSigned(token, allowedAlgorithms)
 	if err != nil {
 		return "", errors.New("cannot parse jwt token")
 	}
@@ -79,7 +94,7 @@ func areExpirationRequirementsFulfilled(token string, maxValiditySeconds *int64)
 	}
 
 	var claims map[string]interface{}
-	tok, err := jwt.ParseSigned(token)
+	tok, err := jwt.ParseSigned(token, allowedAlgorithms)
 	if err != nil {
 		return false, errors.New("cannot parse jwt token")
 	}
