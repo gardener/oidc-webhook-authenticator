@@ -80,9 +80,6 @@ runtime:
     requests:
       cpu: 100m
       memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
 
   automountServiceAccountToken: true
 
@@ -98,4 +95,4 @@ runtime:
     service: {}
 
   # If set the oidc-webhook-authenticator service will have this cluster IP assigned
-  clusterIP: "" 
+  clusterIP: ""

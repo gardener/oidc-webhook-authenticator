@@ -72,9 +72,6 @@ spec:
           requests:
             cpu: 100m
             memory: 64Mi
-          limits:
-            cpu: 300m
-            memory: 256Mi
         volumeMounts:
         - name: certs
           mountPath: /var/run/certs
