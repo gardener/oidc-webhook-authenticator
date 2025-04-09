@@ -20,7 +20,7 @@ cd "${SOURCE_PATH}"
 go vet ./...
 go fmt ./...
 
-go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
+go install github.com/securego/gosec/v2/cmd/gosec@v2.22.3
 
 echo "> Run SAST scan"
 make sast
@@ -30,7 +30,7 @@ curl -s "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3" 
 echo "> Lint helm charts"
 make helm-lint
 
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$(go env GOPATH)"/bin v1.61.0
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$(go env GOPATH)"/bin v2.0.2
 
 echo "> Running golangci-lint"
 golangci-lint run --config ./.golangci.yaml --timeout 10m  ./...
