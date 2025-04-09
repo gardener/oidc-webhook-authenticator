@@ -58,7 +58,7 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 	if e.Environment == nil {
 		e.Environment = &envtest.Environment{}
 	}
-	kubeAPIServer := e.Environment.ControlPlane.GetAPIServer()
+	kubeAPIServer := e.ControlPlane.GetAPIServer()
 
 	kubeAPIServer.Out = e.APIServerOut
 	kubeAPIServer.Err = e.APIServerErr

@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"time"
@@ -92,12 +93,13 @@ func (s *CertConfig) GenerateCertificate() (*Certificate, error) {
 		}
 
 		var pk []byte
-		if s.PKCS == PKCS1 {
+		switch s.PKCS {
+		case PKCS1:
 			pk = pem.EncodeToMemory(&pem.Block{
 				Type:  "RSA PRIVATE KEY",
 				Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 			})
-		} else if s.PKCS == PKCS8 {
+		case PKCS8:
 			bytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 			if err != nil {
 				return nil, err
@@ -106,6 +108,8 @@ func (s *CertConfig) GenerateCertificate() (*Certificate, error) {
 				Type:  "RSA PRIVATE KEY",
 				Bytes: bytes,
 			})
+		default:
+			return nil, fmt.Errorf("unsupported cert format: %d", s.PKCS)
 		}
 
 		certificateObj.PrivateKey = privateKey

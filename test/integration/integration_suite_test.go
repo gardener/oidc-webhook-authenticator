@@ -93,7 +93,7 @@ var _ = BeforeSuite(func() {
 	authWebhookClientCert, err = tls.X509KeyPair(clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 	Expect(err).NotTo(HaveOccurred())
 
-	apiServerSecurePort, err = strconv.Atoi(testEnv.Environment.ControlPlane.GetAPIServer().SecureServing.Port)
+	apiServerSecurePort, err = strconv.Atoi(testEnv.ControlPlane.GetAPIServer().Port)
 	Expect(err).NotTo(HaveOccurred())
 	err = authenticationv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
