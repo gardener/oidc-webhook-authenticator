@@ -5,25 +5,12 @@ linters:
   enable:
     - gocritic
     - revive
-  exclusions:
-    generated: lax
-    rules:
-      - path: (.+)\.go$
-        text: dot-imports
-      - path: (.+)\.go$
-        text: 'exported: (type|func) name will be used as .* by other packages, and that stutters;'
-      - path: (.+)\.go$
-        text: indent-error-flow
-      - path: (.+)\.go$
-        text: package-comments
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
-formatters:
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+  settings:
+    revive:
+      rules:
+      - name: dot-imports
+        disabled: true
+      - name: indent-error-flow
+        disabled: true
+      - name: package-comments
+        disabled: true
