@@ -12,17 +12,17 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/ptr"
 
-	. "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
+	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 )
 
 var _ = Describe("OpenidconnectWebhook", func() {
 	var (
-		oidc         OpenIDConnect
-		systemPrefix = SystemPrefix
+		oidc         authenticationv1alpha1.OpenIDConnect
+		systemPrefix = authenticationv1alpha1.SystemPrefix
 	)
 
 	BeforeEach(func() {
-		oidc = OpenIDConnect{}
+		oidc = authenticationv1alpha1.OpenIDConnect{}
 	})
 
 	Context("defaulting", func() {
@@ -51,14 +51,14 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		It("should default supported signing algs", func() {
 			oidc.Default()
 			Expect(len(oidc.Spec.SupportedSigningAlgs)).To(Equal(1))
-			Expect(oidc.Spec.SupportedSigningAlgs[0]).To(Equal(RS256))
+			Expect(oidc.Spec.SupportedSigningAlgs[0]).To(Equal(authenticationv1alpha1.RS256))
 		})
 
 		It("should not default supported signing algs if explicitly set", func() {
-			oidc.Spec.SupportedSigningAlgs = []SigningAlgorithm{RS256, RS512}
+			oidc.Spec.SupportedSigningAlgs = []authenticationv1alpha1.SigningAlgorithm{authenticationv1alpha1.RS256, authenticationv1alpha1.RS512}
 			oidc.Default()
 			Expect(len(oidc.Spec.SupportedSigningAlgs)).To(Equal(2))
-			Expect(oidc.Spec.SupportedSigningAlgs).To(ConsistOf(RS256, RS512))
+			Expect(oidc.Spec.SupportedSigningAlgs).To(ConsistOf(authenticationv1alpha1.RS256, authenticationv1alpha1.RS512))
 		})
 	})
 
@@ -77,8 +77,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should return error for supported signing algorithms that are not allowed", func() {
-			oidc.Spec.SupportedSigningAlgs = []SigningAlgorithm{
-				RS256,
+			oidc.Spec.SupportedSigningAlgs = []authenticationv1alpha1.SigningAlgorithm{
+				authenticationv1alpha1.RS256,
 				"deprecated1",
 				"deprecated2",
 			}
@@ -178,8 +178,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should not return error if new oidc object is valid", func() {
-			newObj := OpenIDConnect{
-				Spec: OIDCAuthenticationSpec{
+			newObj := authenticationv1alpha1.OpenIDConnect{
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 					IssuerURL: "https://secure2.com",
 					ClientID:  "some-id",
 				},
@@ -190,8 +190,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		})
 
 		It("should return error if new oidc object is not valid", func() {
-			newObj := OpenIDConnect{
-				Spec: OIDCAuthenticationSpec{
+			newObj := authenticationv1alpha1.OpenIDConnect{
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 					IssuerURL: "http://notsecure.com",
 					ClientID:  "some-id",
 				},
@@ -205,8 +205,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		DescribeTable("should not allow username prefix to start with 'system:'",
 			func(maliciousPrefix string) {
 				errMessageTemplate := "usernamePrefix: Invalid value: \"%s\": must not start with system:"
-				newObj := OpenIDConnect{
-					Spec: OIDCAuthenticationSpec{
+				newObj := authenticationv1alpha1.OpenIDConnect{
+					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:      "https://secure2.com",
 						ClientID:       "some-id",
 						UsernamePrefix: &maliciousPrefix,
@@ -224,8 +224,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 
 		DescribeTable("should allow username prefix if it does not start with 'system:'",
 			func(validPrefix string) {
-				newObj := OpenIDConnect{
-					Spec: OIDCAuthenticationSpec{
+				newObj := authenticationv1alpha1.OpenIDConnect{
+					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:      "https://secure2.com",
 						ClientID:       "some-id",
 						UsernamePrefix: &validPrefix,
@@ -246,8 +246,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 		DescribeTable("should not allow groups prefix to start with 'system:'",
 			func(maliciousPrefix string) {
 				errMessageTemplate := "groupsPrefix: Invalid value: \"%s\": must not start with system:"
-				newObj := OpenIDConnect{
-					Spec: OIDCAuthenticationSpec{
+				newObj := authenticationv1alpha1.OpenIDConnect{
+					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:    "https://secure2.com",
 						ClientID:     "some-id",
 						GroupsPrefix: &maliciousPrefix,
@@ -265,8 +265,8 @@ var _ = Describe("OpenidconnectWebhook", func() {
 
 		DescribeTable("should allow groups prefix if it does not start with 'system:'",
 			func(validPrefix string) {
-				newObj := OpenIDConnect{
-					Spec: OIDCAuthenticationSpec{
+				newObj := authenticationv1alpha1.OpenIDConnect{
+					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:    "https://secure2.com",
 						ClientID:     "some-id",
 						GroupsPrefix: &validPrefix,
