@@ -8,9 +8,34 @@ linters:
   settings:
     revive:
       rules:
+      # recommended rules https://github.com/mgechev/revive/tree/v1.9.0?tab=readme-ov-file#recommended-configuration
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
       - name: dot-imports
-        disabled: true
-      - name: indent-error-flow
-        disabled: true
-      - name: package-comments
-        disabled: true
+        arguments:
+        - allowedPackages:
+          - github.com/onsi/ginkgo
+          - github.com/onsi/gomega
+          - github.com/onsi/ginkgo/extensions/table
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+        arguments:
+        - disableStutteringCheck
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      # - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      # - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
