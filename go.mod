@@ -2,8 +2,6 @@ module github.com/gardener/oidc-webhook-authenticator
 
 go 1.23.0
 
-toolchain go1.24.1
-
 require (
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/go-jose/go-jose/v4 v4.0.5
