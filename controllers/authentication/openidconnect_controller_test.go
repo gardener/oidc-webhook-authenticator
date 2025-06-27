@@ -601,7 +601,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 					payload, err := staticKeySet.VerifySignature(ctx, token)
 					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(ContainSubstring("go-jose/go-jose: unexpected signature algorithm \"RS256\"; expected [\"RS384\"]"))
+					Expect(err.Error()).To(ContainSubstring("unexpected signature algorithm \"RS256\"; expected [\"RS384\"]"))
 					Expect(payload).To(BeNil())
 				})
 			})
