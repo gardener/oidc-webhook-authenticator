@@ -42,6 +42,7 @@ var (
 // +kubebuilder:webhook:path=/webhooks/mutating,mutating=true,failurePolicy=fail,sideEffects=None,groups=authentication.gardener.cloud,resources=openidconnects,verbs=create;update,versions=v1alpha1,name=oidc.authentication.gardener.cloud,admissionReviewVersions={v1,v1beta1}
 // +kubebuilder:webhook:verbs=create;update,path=/webhooks/validating,mutating=false,failurePolicy=fail,sideEffects=None,groups=authentication.gardener.cloud,resources=openidconnects,versions=v1alpha1,name=oidc.authentication.gardener.cloud,admissionReviewVersions={v1,v1beta1}
 
+// Handler is a webhook implementing defaulting and validation for the OpenIDConnect resource.
 type Handler struct{}
 
 // ensure webhookHandler implements CustomDefaulter and CustomValidator interfaces
@@ -96,7 +97,7 @@ func (Handler) ValidateCreate(_ context.Context, obj runtime.Object) (admission.
 // The optional warnings will be added to the response as warning messages.
 // Return an error if the object is invalid.
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type
-func (Handler) ValidateUpdate(_ context.Context, oldObj, obj runtime.Object) (admission.Warnings, error) {
+func (Handler) ValidateUpdate(_ context.Context, _, obj runtime.Object) (admission.Warnings, error) {
 	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
 	if !ok {
 		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)

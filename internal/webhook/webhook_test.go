@@ -33,36 +33,36 @@ var _ = Describe("OpenidconnectWebhook", func() {
 
 	Context("defaulting", func() {
 		It("should default username claim", func() {
-			handler.Default(ctx, oidc)
+			Expect(handler.Default(ctx, oidc)).To(Succeed())
 			Expect(*oidc.Spec.UsernameClaim).To(Equal("sub"))
 		})
 
 		It("should not default username claim if explicitly set", func() {
 			oidc.Spec.UsernameClaim = ptr.To("someuserclaim")
-			handler.Default(ctx, oidc)
+			Expect(handler.Default(ctx, oidc)).To(Succeed())
 			Expect(*oidc.Spec.UsernameClaim).To(Equal("someuserclaim"))
 		})
 
 		It("should default groups claim", func() {
-			handler.Default(ctx, oidc)
+			Expect(handler.Default(ctx, oidc)).To(Succeed())
 			Expect(*oidc.Spec.GroupsClaim).To(Equal("groups"))
 		})
 
 		It("should not default groups claim if explicitly set", func() {
 			oidc.Spec.GroupsClaim = ptr.To("somegroupsclaim")
-			handler.Default(ctx, oidc)
+			Expect(handler.Default(ctx, oidc)).To(Succeed())
 			Expect(*oidc.Spec.GroupsClaim).To(Equal("somegroupsclaim"))
 		})
 
 		It("should default supported signing algs", func() {
-			handler.Default(ctx, oidc)
+			Expect(handler.Default(ctx, oidc)).To(Succeed())
 			Expect(len(oidc.Spec.SupportedSigningAlgs)).To(Equal(1))
 			Expect(oidc.Spec.SupportedSigningAlgs[0]).To(Equal(authenticationv1alpha1.RS256))
 		})
 
 		It("should not default supported signing algs if explicitly set", func() {
 			oidc.Spec.SupportedSigningAlgs = []authenticationv1alpha1.SigningAlgorithm{authenticationv1alpha1.RS256, authenticationv1alpha1.RS512}
-			handler.Default(ctx, oidc)
+			Expect(handler.Default(ctx, oidc)).To(Succeed())
 			Expect(len(oidc.Spec.SupportedSigningAlgs)).To(Equal(2))
 			Expect(oidc.Spec.SupportedSigningAlgs).To(ConsistOf(authenticationv1alpha1.RS256, authenticationv1alpha1.RS512))
 		})
