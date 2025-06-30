@@ -4,7 +4,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
+
 
 # For the test step concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.

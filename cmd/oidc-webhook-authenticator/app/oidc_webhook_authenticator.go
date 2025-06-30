@@ -17,6 +17,7 @@ import (
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/gardener/oidc-webhook-authenticator/cmd/oidc-webhook-authenticator/app/options"
 	authcontroller "github.com/gardener/oidc-webhook-authenticator/controllers/authentication"
+	"github.com/gardener/oidc-webhook-authenticator/internal/defaultervalidator"
 	"github.com/gardener/oidc-webhook-authenticator/internal/filters"
 	generichandlers "github.com/gardener/oidc-webhook-authenticator/internal/handlers"
 	"github.com/gardener/oidc-webhook-authenticator/webhook/authentication"
@@ -189,16 +190,19 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		healthzPath    = "/healthz"
 	)
 
-	oidc := &authenticationv1alpha1.OpenIDConnect{}
+	var (
+		oidc               = &authenticationv1alpha1.OpenIDConnect{}
+		defaulterValidator = &defaultervalidator.DefaulterValidator{}
+	)
 
 	mutatingLogger := ctrl.Log.WithName("webhooks").WithName("Mutating")
-	defaultingWebhook := admission.DefaultingWebhookFor(scheme, oidc)
+	defaultingWebhook := admission.WithCustomDefaulter(scheme, oidc, defaulterValidator)
 	defaultingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
 		return mutatingLogger
 	}
 
 	validatingLogger := ctrl.Log.WithName("webhooks").WithName("Validating")
-	validatingWebhook := admission.ValidatingWebhookFor(scheme, oidc)
+	validatingWebhook := admission.WithCustomValidator(scheme, oidc, defaulterValidator)
 	validatingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
 		return validatingLogger
 	}
