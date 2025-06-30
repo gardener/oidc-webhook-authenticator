@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package webhook_test
+package defaultervalidator_test
 
 import (
 	"testing"
