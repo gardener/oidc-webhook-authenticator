@@ -24,7 +24,7 @@ import (
 
 var (
 	// log is for logging in this package.
-	log = logf.Log.WithName("openidconnect-resource")
+	log = logf.Log.WithName("defaulter-validator")
 
 	allowedSigningAlgs = map[authenticationv1alpha1.SigningAlgorithm]bool{
 		authenticationv1alpha1.RS256: true,
@@ -42,15 +42,15 @@ var (
 // +kubebuilder:webhook:path=/webhooks/mutating,mutating=true,failurePolicy=fail,sideEffects=None,groups=authentication.gardener.cloud,resources=openidconnects,verbs=create;update,versions=v1alpha1,name=oidc.authentication.gardener.cloud,admissionReviewVersions={v1,v1beta1}
 // +kubebuilder:webhook:verbs=create;update,path=/webhooks/validating,mutating=false,failurePolicy=fail,sideEffects=None,groups=authentication.gardener.cloud,resources=openidconnects,versions=v1alpha1,name=oidc.authentication.gardener.cloud,admissionReviewVersions={v1,v1beta1}
 
-// Handler is a webhook implementing defaulting and validation for the OpenIDConnect resource.
+// Handler implements defaulting and validation for the OpenIDConnect resource.
 type Handler struct{}
 
 // ensure webhookHandler implements CustomDefaulter and CustomValidator interfaces
 var _ webhook.CustomDefaulter = (*Handler)(nil)
 var _ webhook.CustomValidator = (*Handler)(nil)
 
-// Default implements webhook.CustomDefaulter so a webhook will be registered for the type
-func (Handler) Default(_ context.Context, obj runtime.Object) error {
+// Default implements [webhook.CustomDefaulter] so a webhook can be registered for the type.
+func (*Handler) Default(_ context.Context, obj runtime.Object) error {
 	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
 	if !ok {
 		return fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
@@ -79,46 +79,43 @@ func (Handler) Default(_ context.Context, obj runtime.Object) error {
 }
 
 // ValidateCreate validates the object on creation.
-// The optional warnings will be added to the response as warning messages.
 // Return an error if the object is invalid.
-// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type
-func (Handler) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+// ValidateCreate implements [webhook.CustomValidator] so a webhook can be registered for the type.
+func (*Handler) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
 	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
 	if !ok {
 		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
 	}
 
-	log.Info("Validating OpenIDConnect resource", "operation", "create", "name", oidc.Name)
+	log.Info("Validating OpenIDConnect", "operation", "create", "name", oidc.Name)
 
 	return nil, validate(oidc).ToAggregate()
 }
 
 // ValidateUpdate validates the object on update.
-// The optional warnings will be added to the response as warning messages.
 // Return an error if the object is invalid.
-// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type
-func (Handler) ValidateUpdate(_ context.Context, _, obj runtime.Object) (admission.Warnings, error) {
+// ValidateUpdate implements [webhook.CustomValidator] so a webhook can be registered for the type.
+func (*Handler) ValidateUpdate(_ context.Context, _, obj runtime.Object) (admission.Warnings, error) {
 	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
 	if !ok {
 		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
 	}
 
-	log.Info("Validating OpenIDConnect resource", "operation", "update", "name", oidc.Name)
+	log.Info("Validating OpenIDConnect", "operation", "update", "name", oidc.Name)
 
 	return nil, validate(oidc).ToAggregate()
 }
 
 // ValidateDelete validates the object on deletion.
-// The optional warnings will be added to the response as warning messages.
 // Return an error if the object is invalid.
-// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type
-func (Handler) ValidateDelete(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+// ValidateDelete implements [webhook.CustomValidator] so a webhook can be registered for the type.
+func (*Handler) ValidateDelete(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
 	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
 	if !ok {
 		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
 	}
 
-	log.Info("Validating OpenIDConnect resource", "operation", "delete", "name", oidc.Name)
+	log.Info("Validating OpenIDConnect", "operation", "delete", "name", oidc.Name)
 
 	return nil, nil
 }

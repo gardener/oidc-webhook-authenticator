@@ -192,7 +192,7 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 
 	var (
 		oidc           = &authenticationv1alpha1.OpenIDConnect{}
-		webhookHandler = internalwebhook.Handler{}
+		webhookHandler = &internalwebhook.Handler{}
 	)
 
 	mutatingLogger := ctrl.Log.WithName("webhooks").WithName("Mutating")
