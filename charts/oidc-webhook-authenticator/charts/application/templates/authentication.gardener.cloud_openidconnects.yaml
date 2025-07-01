@@ -6,7 +6,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.13.0
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: openidconnects.authentication.gardener.cloud
 spec:
   group: authentication.gardener.cloud
@@ -45,18 +45,24 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: OpenIDConnect allows to dynamically register OpenID Connect providers
-          used to authenticate against the kube-apiserver.
+        description: |-
+          OpenIDConnect allows to dynamically register OpenID Connect providers used
+          to authenticate against the kube-apiserver.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -64,47 +70,54 @@ spec:
             description: OIDCAuthenticationSpec defines the desired state of OpenIDConnect
             properties:
               caBundle:
-                description: CABundle is a PEM encoded CA bundle which will be used
-                  to validate the OpenID server's certificate. If unspecified, system's
-                  trusted certificates are used.
+                description: |-
+                  CABundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate.
+                  If unspecified, system's trusted certificates are used.
                 format: byte
                 type: string
               clientID:
-                description: "ClientID is the audience for which the JWT must be issued
-                  for, the \"aud\" field. \n The plugin supports the \"authorized
-                  party\" OpenID Connect claim, which allows specialized providers
-                  to issue tokens to a client for a different client. See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken"
+                description: |-
+                  ClientID is the audience for which the JWT must be issued for, the "aud" field.
+
+                  The plugin supports the "authorized party" OpenID Connect claim, which allows
+                  specialized providers to issue tokens to a client for a different client.
+                  See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
                 minLength: 1
                 type: string
               extraClaims:
-                description: ExtraClaims, if specified, causes the OIDCAuthenticator
-                  to copy listed claims to the user Extra field. Claims will be converted
-                  to lower case and prefixed with "gardener.cloud/user/" before being
-                  copied. If any of the extra claims is not present in the token then
-                  the token will be rejected.
+                description: |-
+                  ExtraClaims, if specified, causes the OIDCAuthenticator to copy listed claims to the
+                  user Extra field.
+                  Claims will be converted to lower case and prefixed with "gardener.cloud/user/" before being copied.
+                  If any of the extra claims is not present in the token then the token will be rejected.
                 items:
                   type: string
                 type: array
               groupsClaim:
-                description: GroupsClaim, if specified, causes the OIDCAuthenticator
-                  to try to populate the user's groups with an ID Token field. If
-                  the GroupsClaim field is present in an ID Token the value must be
-                  a string or list of strings.
+                description: |-
+                  GroupsClaim, if specified, causes the OIDCAuthenticator to try to populate the user's
+                  groups with an ID Token field. If the GroupsClaim field is present in an ID Token the value
+                  must be a string or list of strings.
                 type: string
               groupsPrefix:
-                description: "GroupsPrefix, if specified, causes claims mapping to
-                  group names to be prefixed with the value. A value \"oidc:\" would
-                  result in groups like \"oidc:engineering\" and \"oidc:marketing\".
-                  \n If not provided, the prefix defaults to \"( .metadata.name )/\".
-                  The value \"-\" can be used to disable all prefixing."
+                description: |-
+                  GroupsPrefix, if specified, causes claims mapping to group names to be prefixed with the
+                  value. A value "oidc:" would result in groups like "oidc:engineering" and "oidc:marketing".
+
+                  If not provided, the prefix defaults to "( .metadata.name )/".
+                  The value "-" can be used to disable all prefixing.
                 type: string
               issuerURL:
-                description: "IssuerURL is the URL the provider signs ID Tokens as.
-                  This will be the \"iss\" field of all tokens produced by the provider
-                  and is used for configuration discovery. \n The URL is usually the
-                  provider's URL without a path, for example \"https://foo.com\" or
-                  \"https://example.com\". \n The provider must implement configuration
-                  discovery. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig"
+                description: |-
+                  IssuerURL is the URL the provider signs ID Tokens as. This will be the "iss"
+                  field of all tokens produced by the provider and is used for configuration
+                  discovery.
+
+                  The URL is usually the provider's URL without a path, for example
+                  "https://foo.com" or "https://example.com".
+
+                  The provider must implement configuration discovery.
+                  See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
                 pattern: ^https:\/\/
                 type: string
               jwks:
@@ -125,26 +138,32 @@ spec:
                     type: string
                 type: object
               maxTokenExpirationSeconds:
-                description: MaxTokenExpirationSeconds if specified, sets a limit
-                  in seconds to the maximum validity duration of a token. Tokens issued
-                  with validity greater that this value will not be verified. Setting
-                  this will require that the tokens have the "iat" and "exp" claims.
+                description: |-
+                  MaxTokenExpirationSeconds if specified, sets a limit in seconds to the maximum validity duration of a token.
+                  Tokens issued with validity greater that this value will not be verified.
+                  Setting this will require that the tokens have the "iat" and "exp" claims.
                 format: int64
                 type: integer
               requiredClaims:
                 additionalProperties:
                   type: string
-                description: RequiredClaims, if specified, causes the OIDCAuthenticator
-                  to verify that all the required claims key value pairs are present
-                  in the ID Token.
+                description: |-
+                  RequiredClaims, if specified, causes the OIDCAuthenticator to verify that all the
+                  required claims key value pairs are present in the ID Token.
                 type: object
               supportedSigningAlgs:
                 default:
                 - RS256
-                description: "SupportedSigningAlgs sets the accepted set of JOSE signing
-                  algorithms that can be used by the provider to sign tokens. \n https://tools.ietf.org/html/rfc7518#section-3.1
-                  \n This value defaults to RS256, the value recommended by the OpenID
-                  Connect spec: \n https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation"
+                description: |-
+                  SupportedSigningAlgs sets the accepted set of JOSE signing algorithms that
+                  can be used by the provider to sign tokens.
+
+                  https://tools.ietf.org/html/rfc7518#section-3.1
+
+                  This value defaults to RS256, the value recommended by the OpenID Connect
+                  spec:
+
+                  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
                 items:
                   description: SigningAlgorithm is JOSE asymmetric signing algorithm
                     value as defined by RFC 7518
@@ -165,11 +184,12 @@ spec:
                 minLength: 1
                 type: string
               usernamePrefix:
-                description: "UsernamePrefix, if specified, causes claims mapping
-                  to username to be prefix with the provided value. A value \"oidc:\"
-                  would result in usernames like \"oidc:john\". \n If not provided,
-                  the prefix defaults to \"( .metadata.name )/\". The value \"-\"
-                  can be used to disable all prefixing."
+                description: |-
+                  UsernamePrefix, if specified, causes claims mapping to username to be prefix with
+                  the provided value. A value "oidc:" would result in usernames like "oidc:john".
+
+                  If not provided, the prefix defaults to "( .metadata.name )/".
+                  The value "-" can be used to disable all prefixing.
                 type: string
             required:
             - clientID
@@ -177,6 +197,8 @@ spec:
             - usernameClaim
             type: object
           status:
+            description: OIDCAuthenticationStatus is the status of a OpenIDConnect
+              resource.
             type: object
         required:
         - spec
