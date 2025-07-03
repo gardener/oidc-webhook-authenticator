@@ -12,7 +12,7 @@ set -o pipefail
 # For the check step concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
 
-if [[ -z "${SOURCE_PATH}" ]]; then
+if [[ -z "${SOURCE_PATH:-}" ]]; then
   export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
 else
   export SOURCE_PATH="$(readlink -f ${SOURCE_PATH})"
@@ -26,7 +26,7 @@ go fmt ./...
 go install github.com/securego/gosec/v2/cmd/gosec@v2.22.3
 
 echo "> Run SAST scan"
-make sast
+make sast-report
 
 curl -s "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3" | bash -s -- --version 'v3.5.4'
 
