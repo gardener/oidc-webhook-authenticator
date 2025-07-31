@@ -59,7 +59,7 @@ jobs:
           mkdir /tmp/blobs.d
           .ci/check |& tee /tmp/blobs.d/verify-log.txt
           # verify calls `make sast-report`, which generates `gosec-report.sarif`
-          tar czf /tmp/blobs.d/verify-log.tar.gz -C/tmp/blobs.d verify-log.txt
+          tar czf /tmp/blobs.d/verify-log.tar.gz -C /tmp/blobs.d verify-log.txt
           tar czf /tmp/blobs.d/gosec-report.tar.gz gosec-report.sarif
       - name: add-reports-to-component-descriptor
         uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
