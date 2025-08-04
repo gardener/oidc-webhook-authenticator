@@ -1,0 +1,16 @@
+version = 1
+SPDX-PackageName = "Gardener oidc-webhook-authenticator"
+SPDX-PackageSupplier = "The Gardener project <gardener@googlegroups.com>"
+SPDX-PackageDownloadLocation = "https://github.com/gardener/oidc-webhook-authenticator"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2017-2024 SAP SE or an SAP affiliate company and Gardener contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["docs/**", "**.md"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2017-2024 SAP SE or an SAP affiliate company and Gardener contributors"
+SPDX-License-Identifier = "CC-BY-4.0"
