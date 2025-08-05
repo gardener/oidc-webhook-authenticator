@@ -1,0 +1,21 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+{{ if and .Values.global.certManager.enabled .Values.global.certManager.generateClientCertificate }}
+Your client certificate data can be retrieved using the following commands:
+
+  $ kubectl -n {{ .Release.Namespace }} get secrets oidc-webhook-client -o jsonpath='{.data.ca\.crt}' | base64 -d | pbcopy
+  $ kubectl -n {{ .Release.Namespace }} get secrets oidc-webhook-client -o jsonpath='{.data.tls\.crt}' | base64 -d | pbcopy
+  $ kubectl -n {{ .Release.Namespace }} get secrets oidc-webhook-client -o jsonpath='{.data.tls\.key}' | base64 -d | pbcopy
+
+You can then use the data to create your webhook configuration either by using
+the data directly in the corresponding fields or store them on the host and use
+the path to it (see https://kubernetes.io/docs/reference/config-api/kubeconfig.v1/).
+
+{{- end }}
