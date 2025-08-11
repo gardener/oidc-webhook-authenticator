@@ -43,6 +43,34 @@ jobs:
       oci-repository: ${{ matrix.args.oci-repository }}
       oci-platforms: linux/amd64,linux/arm64
 
+  helmcharts:
+    name: Build Helmcharts
+    needs:
+      - prepare
+      - oci-images
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: gardener/cc-utils/.github/workflows/helmchart-ocm.yaml@master
+    strategy:
+      matrix:
+        args:
+          - name: oidc-webhook-authenticator
+            dir: charts/oidc-webhook-authenticator
+            oci-repository: charts/gardener
+            ocm-mappings:
+              - ref: ocm-resource:oidc-webhook-authenticator.repository
+                attribute: image.repository
+              - ref: ocm-resource:oidc-webhook-authenticator.tag
+                attribute: image.tag
+    with:
+      name: ${{ matrix.args.name }}
+      dir: ${{ matrix.args.dir }}
+      oci-registry: ${{ needs.prepare.outputs.oci-registry }}
+      oci-repository: ${{ matrix.args.oci-repository }}
+      ocm-mappings: ${{ toJSON(matrix.args.ocm-mappings) }}
+
   verify:
     runs-on: ubuntu-latest
     permissions:
