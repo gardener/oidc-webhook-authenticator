@@ -43,10 +43,50 @@ jobs:
       oci-repository: ${{ matrix.args.oci-repository }}
       oci-platforms: linux/amd64,linux/arm64
 
-  sast-lint:
-    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
+  verify:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-    with:
-      linter: gosec
-      run: .ci/check
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - name: run-test
+        shell: bash
+        run: |
+          set -eu
+          mkdir /tmp/blobs.d
+          .ci/check |& tee /tmp/blobs.d/verify-log.txt
+          # verify calls `make sast-report`, which generates `gosec-report.sarif`
+          tar czf /tmp/blobs.d/verify-log.tar.gz -C /tmp/blobs.d verify-log.txt
+          tar czf /tmp/blobs.d/gosec-report.tar.gz gosec-report.sarif
+      - name: add-reports-to-component-descriptor
+        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+        with:
+          blobs-directory: /tmp/blobs.d
+          ocm-resources: |
+            - name: gosec-report
+              relation: local
+              access:
+                type: localBlob
+                localReference: gosec-report.tar.gz
+              labels:
+                - name: gardener.cloud/purposes
+                  value:
+                    - lint
+                    - sast
+                    - gosec
+                - name: gardener.cloud/comment
+                  value: |
+                    we use gosec (linter) for SAST scans
+                    see: https://github.com/securego/gosec
+            - name: test-results
+              relation: local
+              access:
+                type: localBlob
+                localReference: verify-log.tar.gz
+              labels:
+                - name: gardener.cloud/purposes
+                  value:
+                    - test
