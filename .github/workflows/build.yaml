@@ -10,6 +10,12 @@ on:
         description: |
           The build mode to use. It can be either `snapshot` or `release`.
           Will affect effective version calculation, as well as target-oci-registry.
+      extra-tags:
+        required: false
+        type: string
+        description: |
+          A comma-separated list of additional tags to set. Existing tags will be updated.
+          Commonly used to reset `latest`-tag.
 
 jobs:
   prepare:
@@ -38,6 +44,7 @@ jobs:
     with:
       name: ${{ matrix.args.name }}
       version: ${{ needs.prepare.outputs.version }}
+      extra-tags: ${{ inputs.extra-tags }}
       target: ${{ matrix.args.target }}
       oci-registry: ${{ needs.prepare.outputs.oci-registry }}
       oci-repository: ${{ matrix.args.oci-repository }}

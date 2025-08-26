@@ -18,6 +18,7 @@ jobs:
       packages: write
     with:
       mode: release
+      extra-tags: latest
 
   release-to-github-and-bump:
     uses: gardener/cc-utils/.github/workflows/release.yaml@master
