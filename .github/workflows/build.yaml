@@ -61,9 +61,9 @@ jobs:
             oci-repository: charts/gardener
             ocm-mappings:
               - ref: ocm-resource:oidc-webhook-authenticator.repository
-                attribute: image.repository
+                attribute: runtime.image.repository
               - ref: ocm-resource:oidc-webhook-authenticator.tag
-                attribute: image.tag
+                attribute: runtime.image.tag
     with:
       name: ${{ matrix.args.name }}
       dir: ${{ matrix.args.dir }}
