@@ -310,7 +310,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			oidc.Spec.ExtraClaims = []string{"claim1", "claim2", "ClaIm1"}
 			warnings, err := defaulterValidator.ValidateCreate(ctx, oidc)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("extraClaims: Invalid value: []string{\"claim1\", \"claim2\", \"ClaIm1\"}: duplicated claims found"))
+			Expect(err).To(MatchError(`extraClaims: Invalid value: ["claim1","claim2","ClaIm1"]: duplicated claims found`))
 			Expect(warnings).To(BeNil())
 		})
 	})
