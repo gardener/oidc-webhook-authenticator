@@ -1,0 +1,11 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+aliases:
+  oidc-webhook-authenticator-reviewers:
+  - dimityrmirchev
+  - theoddora
+  - vpnachev
+  oidc-webhook-authenticator-approvers:
+  - dimityrmirchev
+  - theoddora
+  - vpnachev

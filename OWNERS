@@ -1,0 +1,6 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+reviewers:
+- oidc-webhook-authenticator-reviewers
+approvers:
+- oidc-webhook-authenticator-approvers
