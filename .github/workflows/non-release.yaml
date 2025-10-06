@@ -1,9 +1,9 @@
-name: Build
+name: Non-Release
 on:
   push:
     branches:
       - master
-      - releases/**
+      - releases-v*
   pull_request:
 
 jobs:
