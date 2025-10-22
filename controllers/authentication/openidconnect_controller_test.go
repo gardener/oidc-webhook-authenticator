@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -23,8 +23,7 @@ import (
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
@@ -68,7 +67,6 @@ var _ = Describe("OpenIDConnect controller", func() {
 		privateKey.KeyID = kid
 
 		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT"))
-
 		if err != nil {
 			return "", err
 		}
@@ -513,9 +511,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 				Expect(resp).To(BeNil())
 				Expect(err).To(BeNil())
 			})
-
 		})
-
 	})
 
 	Describe("Use a mocked identity provider", func() {
