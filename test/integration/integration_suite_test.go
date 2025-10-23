@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -62,7 +62,7 @@ func TestIntegration(t *testing.T) {
 	RunSpecs(t, "Integration Suite")
 }
 
-var _ = BeforeSuite(func() {
+var _ = BeforeSuite(NodeTimeout(60*time.Second), func(ctx context.Context) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	if v, ok := os.LookupEnv(dumpLogsEnvName); ok {
@@ -137,12 +137,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	defaultServiceAccountToken = resp.Status.Token
-
-}, 60)
+})
 
 var _ = AfterSuite(func() {
 	if dumpLogs {
-		fileMode := fs.FileMode(0644)
+		fileMode := fs.FileMode(0o644)
 
 		dumpFn := func(filename string, bytes []byte, perm fs.FileMode) {
 			if len(bytes) > 0 {

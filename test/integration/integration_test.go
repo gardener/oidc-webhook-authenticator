@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -19,8 +19,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -170,7 +169,6 @@ var _ = Describe("Integration", func() {
 				Expect(err).NotTo(HaveOccurred())
 				return res.StatusCode
 			}, timeout, interval).Should(Equal(expectedStatusCode))
-
 		}
 
 		It("Should authenticate but not authorize user with a single registered identity provider", func() {
@@ -529,79 +527,77 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
-
 	})
 
 	Context("Authenticating user against the webhook authenticator via token from a trusted identity provider", func() {
-		var (
-			makeTokenReviewRequest = func(userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
-				caCertPool := x509.NewCertPool()
-				caCertPool.AppendCertsFromPEM(ca)
+		makeTokenReviewRequest := func(userToken string, ca []byte, expectToAuthenticate bool) *authenticationv1.TokenReview {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(ca)
 
-				review := &authenticationv1.TokenReview{
-					Spec: authenticationv1.TokenReviewSpec{
-						Token: userToken,
-					},
-				}
-
-				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{
-						RootCAs:    caCertPool,
-						MinVersion: tls.VersionTLS12,
-						Certificates: []tls.Certificate{
-							authWebhookClientCert,
-						}},
-				}
-				client := &http.Client{Transport: tr}
-				body, err := json.Marshal(review)
-				Expect(err).NotTo(HaveOccurred())
-				req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
-				Expect(err).NotTo(HaveOccurred())
-
-				reviewResponse := &authenticationv1.TokenReview{}
-				if expectToAuthenticate {
-					Eventually(func() bool {
-						res, err := client.Do(req)
-						Expect(err).NotTo(HaveOccurred())
-
-						// expect that the webhook returns a 200 response
-						Expect(res.StatusCode).To(Equal(http.StatusOK))
-
-						responseBytes, err := io.ReadAll(res.Body)
-						Expect(err).NotTo(HaveOccurred())
-
-						err = json.Unmarshal(responseBytes, reviewResponse)
-						Expect(err).NotTo(HaveOccurred())
-
-						return reviewResponse.Status.Authenticated
-					}, timeout, interval).Should(BeTrue())
-				} else {
-					// we want to request the endpoint multiple times and always get not authenticated
-					// TODO: this can be fixed after https://github.com/gardener/oidc-webhook-authenticator/issues/79 is implemented
-					// after the enhancement is implemented the observedGeneration field can be used to sync the reconciliation
-					// and the retries will not be needed
-					for i := 0; i < 10; i++ {
-						res, err := client.Do(req)
-						Expect(err).NotTo(HaveOccurred())
-
-						// expect that the webhook returns a 200 response
-						Expect(res.StatusCode).To(Equal(http.StatusOK))
-
-						responseBytes, err := io.ReadAll(res.Body)
-						Expect(err).NotTo(HaveOccurred())
-
-						err = json.Unmarshal(responseBytes, reviewResponse)
-						Expect(err).NotTo(HaveOccurred())
-
-						Expect(reviewResponse.Status.Authenticated).To(BeFalse())
-						// wait one second to query again
-						time.Sleep(time.Second)
-					}
-				}
-
-				return reviewResponse
+			review := &authenticationv1.TokenReview{
+				Spec: authenticationv1.TokenReviewSpec{
+					Token: userToken,
+				},
 			}
-		)
+
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs:    caCertPool,
+					MinVersion: tls.VersionTLS12,
+					Certificates: []tls.Certificate{
+						authWebhookClientCert,
+					},
+				},
+			}
+			client := &http.Client{Transport: tr}
+			body, err := json.Marshal(review)
+			Expect(err).NotTo(HaveOccurred())
+			req, err := http.NewRequest("POST", "https://localhost:10443/validate-token", bytes.NewReader(body))
+			Expect(err).NotTo(HaveOccurred())
+
+			reviewResponse := &authenticationv1.TokenReview{}
+			if expectToAuthenticate {
+				Eventually(func() bool {
+					res, err := client.Do(req)
+					Expect(err).NotTo(HaveOccurred())
+
+					// expect that the webhook returns a 200 response
+					Expect(res.StatusCode).To(Equal(http.StatusOK))
+
+					responseBytes, err := io.ReadAll(res.Body)
+					Expect(err).NotTo(HaveOccurred())
+
+					err = json.Unmarshal(responseBytes, reviewResponse)
+					Expect(err).NotTo(HaveOccurred())
+
+					return reviewResponse.Status.Authenticated
+				}, timeout, interval).Should(BeTrue())
+			} else {
+				// we want to request the endpoint multiple times and always get not authenticated
+				// TODO: this can be fixed after https://github.com/gardener/oidc-webhook-authenticator/issues/79 is implemented
+				// after the enhancement is implemented the observedGeneration field can be used to sync the reconciliation
+				// and the retries will not be needed
+				for i := 0; i < 10; i++ {
+					res, err := client.Do(req)
+					Expect(err).NotTo(HaveOccurred())
+
+					// expect that the webhook returns a 200 response
+					Expect(res.StatusCode).To(Equal(http.StatusOK))
+
+					responseBytes, err := io.ReadAll(res.Body)
+					Expect(err).NotTo(HaveOccurred())
+
+					err = json.Unmarshal(responseBytes, reviewResponse)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(reviewResponse.Status.Authenticated).To(BeFalse())
+					// wait one second to query again
+					time.Sleep(time.Second)
+				}
+			}
+
+			return reviewResponse
+		}
 
 		It("Should not allow anonymous request to /validate-token endpoint of the authenticator", func() {
 			caCertPool := x509.NewCertPool()
@@ -1747,8 +1743,8 @@ var _ = Describe("Integration", func() {
 			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 
 			extraClaims := map[string]authenticationv1.ExtraValue{
-				"gardener.cloud/user/claim1": authenticationv1.ExtraValue{"test1"},
-				"gardener.cloud/user/claim2": authenticationv1.ExtraValue{"test2"},
+				"gardener.cloud/user/claim1": {"test1"},
+				"gardener.cloud/user/claim2": {"test2"},
 			}
 
 			for key, value := range extraClaims {
