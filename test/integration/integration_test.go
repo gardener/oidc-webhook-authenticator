@@ -37,11 +37,13 @@ import (
 var _ = Describe("Integration", func() {
 	const (
 		defaultNamespaceName = "default"
+		defaultAudience      = "my-idp-provider"
 		podReaderRoleName    = "pod-reader"
 	)
 
 	var (
 		emailUserNameClaim = "email"
+		userIdentity       = "this-is-my-identity"
 		stopIDP            = func(ctx context.Context, idp *mockidp.OIDCIdentityServer) {
 			err := idp.Stop(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -57,31 +59,38 @@ var _ = Describe("Integration", func() {
 	)
 
 	Context("Creating an openid resource", func() {
-		It("A new OpenIDConnect controller resource is successfully created", func() {
-			usernameClaim := "subject"
-			usernamePrefix := "user-pref:"
-			groupsClaim := "groups"
-			groupsPrefix := "groups-pref:"
-			openidconnect := &authenticationv1alpha1.OpenIDConnect{
+		var (
+			usernameClaim  = "subject"
+			usernamePrefix = "user-pref:"
+			groupsClaim    = "groups"
+			groupsPrefix   = "groups-pref:"
+			oidcName       = "test-oidc"
+			audiences      = []string{defaultAudience}
+			issuerURL      = "https://localhost:1234"
+			openidconnect  *authenticationv1alpha1.OpenIDConnect
+		)
+
+		BeforeEach(func() {
+			openidconnect = &authenticationv1alpha1.OpenIDConnect{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-oidc",
-					Namespace: "default",
+					Name: oidcName,
 				},
 				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
-					IssuerURL:      "https://localhost:1234",
-					ClientID:       "some-client-id",
+					IssuerURL:      issuerURL,
+					Audiences:      audiences,
 					UsernameClaim:  &usernameClaim,
 					UsernamePrefix: &usernamePrefix,
 					GroupsClaim:    &groupsClaim,
 					GroupsPrefix:   &groupsPrefix,
 				},
 			}
+		})
 
+		It("A new OpenIDConnect controller resource is successfully created", func() {
 			Expect(k8sClient.Create(ctx, openidconnect)).To(Succeed())
 			createdOIDC := &authenticationv1alpha1.OpenIDConnect{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-oidc",
-					Namespace: "default",
+					Name: oidcName,
 				},
 			}
 
@@ -90,86 +99,83 @@ var _ = Describe("Integration", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			Expect(createdOIDC.Spec.IssuerURL).To(Equal(openidconnect.Spec.IssuerURL))
-			Expect(createdOIDC.Spec.ClientID).To(Equal(openidconnect.Spec.ClientID))
-			Expect(createdOIDC.Spec.UsernameClaim).To(Equal(openidconnect.Spec.UsernameClaim))
-			Expect(createdOIDC.Spec.UsernamePrefix).To(Equal(openidconnect.Spec.UsernamePrefix))
-			Expect(createdOIDC.Spec.GroupsClaim).To(Equal(openidconnect.Spec.GroupsClaim))
-			Expect(createdOIDC.Spec.GroupsPrefix).To(Equal(openidconnect.Spec.GroupsPrefix))
+			Expect(createdOIDC.Spec).To(Equal(openidconnect.Spec))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, createdOIDC)
 		})
 	})
 
 	Context("Authenticating user to the kube-apiserver via token from a trusted identity provider", func() {
-		createRoleBindingForUser := func(ctx context.Context, namespace, roleName, username string) *rbacv1.RoleBinding {
-			roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      rand.String(5),
-					Namespace: namespace,
-				},
-				Subjects: []rbacv1.Subject{{
-					Kind:     "User",
-					Name:     username,
-					APIGroup: "rbac.authorization.k8s.io",
-				}},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "Role",
-					Name:     roleName,
-				},
-			}, metav1.CreateOptions{})
+		var (
+			createRoleBindingForUser = func(ctx context.Context, namespace, roleName, username string) *rbacv1.RoleBinding {
+				roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      rand.String(5),
+						Namespace: namespace,
+					},
+					Subjects: []rbacv1.Subject{{
+						APIGroup: rbacv1.GroupName,
+						Kind:     rbacv1.UserKind,
+						Name:     username,
+					}},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: rbacv1.GroupName,
+						Kind:     "Role",
+						Name:     roleName,
+					},
+				}, metav1.CreateOptions{})
 
-			Expect(err).NotTo(HaveOccurred())
-			return roleBinding
-		}
-
-		createRoleBindingForGroup := func(ctx context.Context, namespace, roleName, groupName string) *rbacv1.RoleBinding {
-			roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      rand.String(5),
-					Namespace: namespace,
-				},
-				Subjects: []rbacv1.Subject{{
-					Kind:     "Group",
-					Name:     groupName,
-					APIGroup: "rbac.authorization.k8s.io",
-				}},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "Role",
-					Name:     roleName,
-				},
-			}, metav1.CreateOptions{})
-
-			Expect(err).NotTo(HaveOccurred())
-			return roleBinding
-		}
-
-		ensureRoleBindingIsDeleted := func(ctx context.Context, roleBinding *rbacv1.RoleBinding) {
-			err := clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(ctx, roleBinding.Name, metav1.DeleteOptions{})
-			if err != nil {
-				Expect(apierrors.IsNotFound(err)).To(BeTrue())
-			}
-		}
-
-		makeAPIServerRequestAndExpectCode := func(userToken string, expectedStatusCode int) {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, //nolint:gosec
-				},
-			}
-			client := &http.Client{Transport: tr}
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%v/api/v1/namespaces/default/pods", apiServerSecurePort), nil)
-			Expect(err).NotTo(HaveOccurred())
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", userToken))
-
-			Eventually(func() int {
-				res, err := client.Do(req)
 				Expect(err).NotTo(HaveOccurred())
-				return res.StatusCode
-			}, timeout, interval).Should(Equal(expectedStatusCode))
-		}
+				return roleBinding
+			}
+
+			createRoleBindingForGroup = func(ctx context.Context, namespace, roleName, groupName string) *rbacv1.RoleBinding {
+				roleBinding, err := clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      rand.String(5),
+						Namespace: namespace,
+					},
+					Subjects: []rbacv1.Subject{{
+						APIGroup: rbacv1.GroupName,
+						Kind:     rbacv1.GroupKind,
+						Name:     groupName,
+					}},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: rbacv1.GroupName,
+						Kind:     "Role",
+						Name:     roleName,
+					},
+				}, metav1.CreateOptions{})
+
+				Expect(err).NotTo(HaveOccurred())
+				return roleBinding
+			}
+
+			ensureRoleBindingIsDeleted = func(ctx context.Context, roleBinding *rbacv1.RoleBinding) {
+				err := clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(ctx, roleBinding.Name, metav1.DeleteOptions{})
+				if err != nil {
+					Expect(apierrors.IsNotFound(err)).To(BeTrue())
+				}
+			}
+
+			makeAPIServerRequestAndExpectCode = func(userToken string, expectedStatusCode int) {
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true, //nolint:gosec
+					},
+				}
+				client := &http.Client{Transport: tr}
+				req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%v/api/v1/namespaces/default/pods", apiServerSecurePort), nil)
+				Expect(err).NotTo(HaveOccurred())
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", userToken))
+
+				Eventually(func() int {
+					res, err := client.Do(req)
+					Expect(err).NotTo(HaveOccurred())
+					return res.StatusCode
+				}, timeout, interval).Should(Equal(expectedStatusCode))
+			}
+		)
 
 		It("Should authenticate but not authorize user with a single registered identity provider", func() {
 			idp := createAndStartIDPServer(2)
@@ -181,7 +187,7 @@ var _ = Describe("Integration", func() {
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
 			claims := defaultClaims()
-			claims["sub"] = "1231"
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["email"] = "johndoe@example.com"
 
@@ -211,9 +217,10 @@ var _ = Describe("Integration", func() {
 			stopIDP(ctx, idp)
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
 			claims := defaultClaims()
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
-			claims["sub"] = "my-identity"
+			claims["sub"] = userIdentity
 
 			signedTokenWithFirstKey, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
@@ -236,15 +243,14 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			signedTokenWithFirstKey, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, fmt.Sprintf("%s/%s", provider.Name, user))
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, fmt.Sprintf("%s/%s", provider.Name, userIdentity))
 			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
 			makeAPIServerRequestAndExpectCode(signedTokenWithFirstKey, http.StatusOK)
@@ -299,9 +305,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -323,9 +328,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["admin"] = "true"
 
@@ -345,9 +349,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://invalid:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -366,9 +369,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["aud"] = "invalid"
 
@@ -388,9 +390,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["exp"] = time.Now().Add(time.Minute * -10).Unix()
 
@@ -412,15 +413,14 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix+user)
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix+userIdentity)
 			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
@@ -441,9 +441,8 @@ var _ = Describe("Integration", func() {
 
 				waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-				user := "this-is-my-identity"
 				claims := defaultClaims()
-				claims["sub"] = user
+				claims["sub"] = userIdentity
 				claims["groups"] = groups
 				claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -472,9 +471,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["aud"] = "invalid"
 
@@ -493,19 +491,18 @@ var _ = Describe("Integration", func() {
 			prefix := "customprefix:"
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.UsernamePrefix = &prefix
-			provider.Spec.ClientID = "123"
+			provider.Spec.Audiences = []string{"123"}
 
 			prefix1 := "customprefix1:"
 			provider1 := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider1.Spec.UsernamePrefix = &prefix1
-			provider1.Spec.ClientID = "456"
+			provider1.Spec.Audiences = []string{"456"}
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["aud"] = "123"
 
@@ -513,7 +510,7 @@ var _ = Describe("Integration", func() {
 			token, err := idp.Sign(0, claims)
 			Expect(err).NotTo(HaveOccurred())
 
-			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix1+user)
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix1+userIdentity)
 			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusForbidden)
@@ -524,6 +521,55 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
+		})
+
+		It("Should correctly authenticate and authorize user with valid token from idp which is registered with multiple audiences", func() {
+			idp := createAndStartIDPServer(1)
+			defer stopIDP(ctx, idp)
+
+			prefix := "customprefix:"
+			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
+			provider.Spec.UsernamePrefix = &prefix
+			provider.Spec.Audiences = []string{"123", "456"}
+
+			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
+
+			claims := defaultClaims()
+			claims["sub"] = userIdentity
+			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
+
+			// matches the first oidc resource audience - should authenticate and authorize
+			claims["aud"] = []string{"123"}
+			token, err := idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			roleBinding := createRoleBindingForUser(ctx, defaultNamespaceName, podReaderRoleName, prefix+userIdentity)
+			defer ensureRoleBindingIsDeleted(ctx, roleBinding)
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+			// matches the second oidc resource audience - should authenticate and authorize
+			claims["aud"] = []string{"456"}
+			token, err = idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+			// matches both oidc resource audiences - should authenticate and authorize
+			claims["aud"] = []string{"123", "456"}
+			token, err = idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusOK)
+
+			// does not match oidc resource audience - should not authenticate
+			claims["aud"] = []string{"789"}
+			token, err = idp.Sign(0, claims)
+			Expect(err).NotTo(HaveOccurred())
+
+			makeAPIServerRequestAndExpectCode(token, http.StatusUnauthorized)
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
 		})
@@ -660,9 +706,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"employee", "admin"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -672,7 +717,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(ConsistOf(fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "employee")))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -690,9 +735,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin", "employee"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -703,7 +747,7 @@ var _ = Describe("Integration", func() {
 				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 				Expect(review.Status.Authenticated).To(BeTrue())
-				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 			}
 
@@ -730,9 +774,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin", "employee"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -743,7 +786,7 @@ var _ = Describe("Integration", func() {
 				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 				Expect(review.Status.Authenticated).To(BeTrue())
-				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 			}
 
@@ -772,9 +815,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin", "employee"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -785,7 +827,7 @@ var _ = Describe("Integration", func() {
 				review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 				Expect(review.Status.Authenticated).To(BeTrue())
-				Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+				Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 				Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 			}
 
@@ -823,9 +865,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin", "employee"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -835,7 +876,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -855,9 +896,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -867,7 +907,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -889,11 +929,10 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			realUser := "this-is-my-real-identity"
 			realGroups := []string{"real-admin"}
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin"}
 			claims[groupsClaim] = realGroups
 			claims[userClaim] = realUser
@@ -928,9 +967,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -990,9 +1028,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin", "master"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1002,7 +1039,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1024,9 +1061,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin", "system:master"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1036,7 +1072,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{"admin"}))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1058,9 +1094,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin", "dev"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1070,7 +1105,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{groupsPrefix + "admin", groupsPrefix + "dev"}))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1095,9 +1130,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin", "dev"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1107,7 +1141,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{groupsPrefix + "admin", groupsPrefix + "dev"}))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1129,9 +1163,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin", "dev"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1141,7 +1174,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "dev")}))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1166,9 +1199,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin", "dev"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1178,7 +1210,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(ConsistOf([]string{fmt.Sprintf("%s/%s", provider.Name, "admin"), fmt.Sprintf("%s/%s", provider.Name, "dev")}))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1200,9 +1232,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim+"invalid"] = user
+			claims[userClaim+"invalid"] = userIdentity
 			claims[groupsClaim] = []string{"admin"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1234,9 +1265,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims[userClaim] = user
+			claims[userClaim] = userIdentity
 			claims[groupsClaim] = []string{"admin"}
 			claims["aud"] = "invalid"
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
@@ -1261,9 +1291,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1293,7 +1322,7 @@ var _ = Describe("Integration", func() {
 			provider1.Spec.UsernamePrefix = &userPrefix1
 			provider1.Spec.GroupsClaim = &groupsClaim
 			provider1.Spec.GroupsPrefix = &groupsPrefix1
-			provider1.Spec.ClientID = "client1"
+			provider1.Spec.Audiences = []string{"client1"}
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider1)
 
@@ -1302,13 +1331,12 @@ var _ = Describe("Integration", func() {
 			provider2.Spec.UsernamePrefix = &userPrefix2
 			provider2.Spec.GroupsClaim = &groupsClaim
 			provider2.Spec.GroupsPrefix = &groupsPrefix2
-			provider2.Spec.ClientID = "client2"
+			provider2.Spec.Audiences = []string{"client2"}
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider2)
 
-			user := "this-is-my-identity"
 			claims1 := defaultClaims()
-			claims1[userClaim] = user
+			claims1[userClaim] = userIdentity
 			claims1[groupsClaim] = []string{"admin"}
 			claims1["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims1["aud"] = "client1"
@@ -1317,7 +1345,7 @@ var _ = Describe("Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			claims2 := defaultClaims()
-			claims2[userClaim] = user
+			claims2[userClaim] = userIdentity
 			claims2[groupsClaim] = []string{"admin"}
 			claims2["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims2["aud"] = "client2"
@@ -1328,13 +1356,13 @@ var _ = Describe("Integration", func() {
 			review1 := makeTokenReviewRequest(token1, testEnv.OIDCServerCA(), true)
 
 			Expect(review1.Status.Authenticated).To(BeTrue())
-			Expect(review1.Status.User.Username).To(Equal(userPrefix1 + user))
+			Expect(review1.Status.User.Username).To(Equal(userPrefix1 + userIdentity))
 			Expect(review1.Status.User.Groups).To(ConsistOf(groupsPrefix1 + "admin"))
 
 			review2 := makeTokenReviewRequest(token2, testEnv.OIDCServerCA(), true)
 
 			Expect(review2.Status.Authenticated).To(BeTrue())
-			Expect(review2.Status.User.Username).To(Equal(userPrefix2 + user))
+			Expect(review2.Status.User.Username).To(Equal(userPrefix2 + userIdentity))
 			Expect(review2.Status.User.Groups).To(ConsistOf(groupsPrefix2 + "admin"))
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider1)
@@ -1355,7 +1383,7 @@ var _ = Describe("Integration", func() {
 					Name: "not-defaulted-groups-claim",
 				},
 				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
-					ClientID:      "my-idp-provider",
+					Audiences:     []string{defaultAudience},
 					UsernameClaim: &usernameClaim,
 					IssuerURL:     fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort),
 					CABundle:      idp.CA(),
@@ -1366,9 +1394,8 @@ var _ = Describe("Integration", func() {
 
 			Expect(provider.Spec.GroupsClaim).To(BeNil())
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1378,7 +1405,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1394,7 +1421,7 @@ var _ = Describe("Integration", func() {
 					Name: "not-defaulted-username-claim",
 				},
 				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
-					ClientID:  "my-idp-provider",
+					Audiences: []string{defaultAudience},
 					IssuerURL: "https://some-issuer",
 				},
 			}
@@ -1412,9 +1439,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
@@ -1424,7 +1450,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(ConsistOf(fmt.Sprintf("%s/%s", provider.Name, "admin")))
 
 			provider.Spec.GroupsClaim = nil
@@ -1437,7 +1463,7 @@ var _ = Describe("Integration", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1454,9 +1480,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1486,9 +1511,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["exp"] = time.Now().Add(time.Minute * -1).Unix()
 
@@ -1512,10 +1536,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
-
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["nbf"] = time.Now().Add(time.Minute * 2).Unix()
 
@@ -1539,9 +1561,8 @@ var _ = Describe("Integration", func() {
 			provider.Spec.MaxTokenExpirationSeconds = ptr.To[int64](60)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1563,9 +1584,8 @@ var _ = Describe("Integration", func() {
 			provider.Spec.MaxTokenExpirationSeconds = ptr.To[int64](60 * 20)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			delete(claims, "iat")
 
@@ -1587,10 +1607,8 @@ var _ = Describe("Integration", func() {
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			provider.Spec.MaxTokenExpirationSeconds = ptr.To[int64](60 * 20)
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
-
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1598,7 +1616,7 @@ var _ = Describe("Integration", func() {
 
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, user)))
+			Expect(review.Status.User.Username).To(Equal(fmt.Sprintf("%s/%s", provider.Name, userIdentity)))
 			Expect(review.Status.User.Groups).To(BeEmpty())
 
 			waitForOIDCResourceToBeDeleted(ctx, k8sClient, provider)
@@ -1611,9 +1629,8 @@ var _ = Describe("Integration", func() {
 			provider := defaultOIDCProvider(fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort), idp.CA())
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1622,7 +1639,7 @@ var _ = Describe("Integration", func() {
 			split := strings.Split(token, ".")
 			decodedBytes, err := base64.RawURLEncoding.DecodeString(split[1])
 			Expect(err).NotTo(HaveOccurred())
-			newClaims := map[string]interface{}{}
+			newClaims := map[string]any{}
 			Expect(json.Unmarshal(decodedBytes, &newClaims)).To(Succeed())
 
 			newClaims["exp"] = time.Now().Add(time.Minute * 30).Unix()
@@ -1649,9 +1666,8 @@ var _ = Describe("Integration", func() {
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 			provider.Spec.JWKS.Keys = keys
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1660,7 +1676,7 @@ var _ = Describe("Integration", func() {
 			split := strings.Split(token, ".")
 			decodedBytes, err := base64.RawURLEncoding.DecodeString(split[1])
 			Expect(err).NotTo(HaveOccurred())
-			newClaims := map[string]interface{}{}
+			newClaims := map[string]any{}
 			Expect(json.Unmarshal(decodedBytes, &newClaims)).To(Succeed())
 
 			newClaims["exp"] = time.Now().Add(time.Minute * 30).Unix()
@@ -1688,9 +1704,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 
 			token, err := idp.Sign(0, claims)
@@ -1725,9 +1740,8 @@ var _ = Describe("Integration", func() {
 
 			waitForOIDCResourceToBeCreated(ctx, k8sClient, provider)
 
-			user := "this-is-my-identity"
 			claims := defaultClaims()
-			claims["sub"] = user
+			claims["sub"] = userIdentity
 			claims["groups"] = []string{"admin", "employee"}
 			claims["iss"] = fmt.Sprintf("https://localhost:%v", idp.ServerSecurePort)
 			claims["claim1"] = "test1"
@@ -1739,7 +1753,7 @@ var _ = Describe("Integration", func() {
 			review := makeTokenReviewRequest(token, testEnv.OIDCServerCA(), true)
 
 			Expect(review.Status.Authenticated).To(BeTrue())
-			Expect(review.Status.User.Username).To(Equal(userPrefix + user))
+			Expect(review.Status.User.Username).To(Equal(userPrefix + userIdentity))
 			Expect(review.Status.User.Groups).To(ConsistOf(groupsPrefix+"admin", groupsPrefix+"employee"))
 
 			extraClaims := map[string]authenticationv1.ExtraValue{
@@ -1769,11 +1783,15 @@ func waitForOIDCResourceToBeCreated(ctx context.Context, k8sClient client.Client
 }
 
 func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client, oidc *authenticationv1alpha1.OpenIDConnect) {
-	err := client.IgnoreNotFound(k8sClient.Delete(ctx, oidc))
-	Expect(err).NotTo(HaveOccurred())
-
 	openidconnectLookupKey := client.ObjectKeyFromObject(oidc)
 	createdOpenIDConnect := &authenticationv1alpha1.OpenIDConnect{}
+	err := k8sClient.Get(ctx, openidconnectLookupKey, createdOpenIDConnect)
+	if err == nil {
+		err = k8sClient.Delete(ctx, oidc)
+		Expect(err).NotTo(HaveOccurred())
+	} else {
+		Expect(apierrors.IsNotFound(err)).To(BeTrue())
+	}
 
 	Eventually(func() bool {
 		err := k8sClient.Get(ctx, openidconnectLookupKey, createdOpenIDConnect)
@@ -1782,7 +1800,7 @@ func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client
 }
 
 func defaultOIDCProvider(issuerURL string, caBundle []byte) *authenticationv1alpha1.OpenIDConnect {
-	name := rand.String(5)
+	name := fmt.Sprintf("oidc-provider-%s", rand.String(5))
 	defaultUsernameClaim := "sub"
 	defaultGroupsClaim := "groups"
 	return &authenticationv1alpha1.OpenIDConnect{
@@ -1794,7 +1812,7 @@ func defaultOIDCProvider(issuerURL string, caBundle []byte) *authenticationv1alp
 			Name: name,
 		},
 		Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
-			ClientID:      "my-idp-provider",
+			Audiences:     []string{"my-idp-provider"},
 			JWKS:          authenticationv1alpha1.JWKSSpec{},
 			CABundle:      caBundle,
 			IssuerURL:     issuerURL,
@@ -1804,8 +1822,8 @@ func defaultOIDCProvider(issuerURL string, caBundle []byte) *authenticationv1alp
 	}
 }
 
-func defaultClaims() map[string]interface{} {
-	return map[string]interface{}{
+func defaultClaims() map[string]any {
+	return map[string]any{
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Minute * 15).Unix(),
 		"aud": "my-idp-provider",

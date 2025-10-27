@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2022 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -37,7 +37,7 @@ func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, 
 		return nil, errors.New("cannot parse jwt token")
 	}
 
-	var claims map[string]interface{}
+	var claims map[string]any
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	if err != nil {
 		return nil, errors.New("cannot parse claims")
@@ -65,7 +65,7 @@ func extractClaims(tokenStr string, extraClaims []string) (map[string][]string, 
 }
 
 func getIssuerURL(token string) (string, error) {
-	var claims map[string]interface{}
+	var claims map[string]any
 	tok, err := jwt.ParseSigned(token, allowedAlgorithms)
 	if err != nil {
 		return "", errors.New("cannot parse jwt token")
@@ -93,7 +93,7 @@ func areExpirationRequirementsFulfilled(token string, maxValiditySeconds *int64)
 		return false, errors.New("max validity seconds of a token should not be negative")
 	}
 
-	var claims map[string]interface{}
+	var claims map[string]any
 	tok, err := jwt.ParseSigned(token, allowedAlgorithms)
 	if err != nil {
 		return false, errors.New("cannot parse jwt token")

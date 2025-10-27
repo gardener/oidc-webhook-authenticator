@@ -19,16 +19,22 @@ import (
 	"strings"
 	"time"
 
+	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	mock "github.com/gardener/oidc-webhook-authenticator/test/integration/mock"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
@@ -51,7 +57,7 @@ func stopIDP(ctx context.Context, idp *mock.OIDCIdentityServer) {
 var _ = Describe("OpenIDConnect controller", func() {
 	ctx := context.Background()
 	log := logr.Discard()
-	sign := func(claims map[string]interface{}) (string, error) {
+	sign := func(claims map[string]any) (string, error) {
 		privateKey := jose.JSONWebKey{}
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -78,6 +84,82 @@ var _ = Describe("OpenIDConnect controller", func() {
 		}
 		return token, nil
 	}
+
+	Describe("Reconcile OpenIDConnect", func() {
+		var (
+			reconciler *OpenIDConnectReconciler
+			fakeClient client.Client
+
+			oidc          *authenticationv1alpha1.OpenIDConnect
+			oidcObjectKey client.ObjectKey
+		)
+
+		BeforeEach(func() {
+			scheme := runtime.NewScheme()
+			Expect(authenticationv1alpha1.AddToScheme(scheme)).To(Succeed())
+
+			fakeClient = fake.NewClientBuilder().WithScheme(scheme).Build()
+			reconciler = &OpenIDConnectReconciler{
+				Client:       fakeClient,
+				Log:          log,
+				Scheme:       scheme,
+				ResyncPeriod: time.Hour,
+			}
+			unionHandler := newUnionAuthTokenHandler()
+			reconciler.unionAuthTokenHandler = unionHandler
+
+			oidc = &authenticationv1alpha1.OpenIDConnect{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-oidc",
+				},
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					IssuerURL:                 "https://example.com",
+					ClientID:                  "example-client",
+					UsernameClaim:             ptr.To("sub"),
+					UsernamePrefix:            ptr.To("oidc:"),
+					GroupsClaim:               ptr.To("groups"),
+					GroupsPrefix:              ptr.To("oidc-groups:"),
+					MaxTokenExpirationSeconds: ptr.To[int64](3600),
+					JWKS: authenticationv1alpha1.JWKSSpec{
+						Keys: []byte(`{"keys":[{"kty":"RSA","kid":"test-key","use":"sig","alg":"RS256","n":"sXch6KJc0mX1sXch6KJc0mX1sXch6KJc0mX1sXch6KJc0mX1sXch6KJc0mX1sXch6KJc0mX1sXch6KJc0mX1","e":"AQAB"}]}`),
+					},
+				},
+			}
+			oidcObjectKey = client.ObjectKey{Name: oidc.Name}
+		})
+
+		It("should reconcile an OpenIDConnect resource with clientID successfully", func() {
+			Expect(fakeClient.Create(ctx, oidc)).To(Succeed())
+
+			req := ctrl.Request{NamespacedName: oidcObjectKey}
+			res, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(Equal(ctrl.Result{RequeueAfter: time.Hour}))
+		})
+
+		It("should reconcile an OpenIDConnect resource with audiences successfully", func() {
+			oidc.Spec.ClientID = ""
+			oidc.Spec.Audiences = []string{"example-audience"}
+			Expect(fakeClient.Create(ctx, oidc)).To(Succeed())
+
+			req := ctrl.Request{NamespacedName: oidcObjectKey}
+			res, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(Equal(ctrl.Result{RequeueAfter: time.Hour}))
+		})
+
+		It("should result in error for an OpenIDConnect resource with invalid audience", func() {
+			oidc.Spec.ClientID = ""
+			oidc.Spec.Audiences = []string{}
+			Expect(fakeClient.Create(ctx, oidc)).To(Succeed())
+
+			req := ctrl.Request{NamespacedName: oidcObjectKey}
+			res, err := reconciler.Reconcile(ctx, req)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal(fmt.Errorf("OIDC config %s must specify at least one audience or a clientID", req.Name).Error()))
+			Expect(res).To(Equal(ctrl.Result{}))
+		})
+	})
 
 	Describe("Authentication with Token Authentication handlers", func() {
 		var (
@@ -106,7 +188,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   uuid.NewUUID(),
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer1",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -141,7 +223,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   authUID,
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer2",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -182,7 +264,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   authUID,
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer2",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -216,7 +298,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   uuid.NewUUID(),
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer2",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -231,7 +313,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 		Context("No Token Authenticator Handler available", func() {
 			It("Authentication should fail", func() {
 				unionHandler := newUnionAuthTokenHandler()
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer2",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -271,7 +353,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   uuid.NewUUID(),
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss_invalid": "https://issuer1",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -294,7 +376,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   uuid.NewUUID(),
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer1",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -316,7 +398,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   authUID,
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer1",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -351,7 +433,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					name:  "2",
 					uid:   authUID,
 				})
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer2",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -391,7 +473,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					uid:   uuid.NewUUID(),
 				})
 
-				token, err := sign(map[string]interface{}{
+				token, err := sign(map[string]any{
 					"iss": "https://issuer2",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -422,11 +504,11 @@ var _ = Describe("OpenIDConnect controller", func() {
 				uid:   uuid.NewUUID(),
 			})
 
-			claims := map[string]interface{}{
+			claims := map[string]any{
 				"iss":    issuer1URL,
 				"claim1": "value1",
 				"claim2": 2,
-				"claim3": []interface{}{
+				"claim3": []any{
 					"value3",
 					3,
 				},
@@ -516,6 +598,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 	Describe("Use a mocked identity provider", func() {
 		var idp *mock.OIDCIdentityServer
+
 		BeforeEach(func() {
 			var err error
 			idp, err = mock.NewIdentityServer("test-idp", 1)
@@ -523,6 +606,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 			err = idp.Start()
 			Expect(err).NotTo(HaveOccurred())
 		})
+
 		AfterEach(func() {
 			Expect(idp.Stop(ctx)).To(Succeed())
 		})
@@ -536,7 +620,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(staticKeySet).NotTo(BeNil())
 
-					claims := map[string]interface{}{
+					claims := map[string]any{
 						"someclaim": "somevalue",
 					}
 					token, err := idp.Sign(0, claims)
@@ -563,7 +647,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(staticKeySet).NotTo(BeNil())
 
-					claims := map[string]interface{}{
+					claims := map[string]any{
 						"someclaim": "somevalue",
 					}
 					token, err := idp1.Sign(0, claims)
@@ -589,7 +673,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(staticKeySet).NotTo(BeNil())
 
-					claims := map[string]interface{}{
+					claims := map[string]any{
 						"someclaim": "somevalue",
 					}
 					token, err := idp1.Sign(0, claims)
@@ -620,7 +704,6 @@ var _ = Describe("OpenIDConnect controller", func() {
 						if err == nil {
 							return false
 						}
-
 						// Different errors are returned depending on the OS since go 1.18
 						// See a similar issue here https://github.com/golang/go/issues/51991
 						expectedAnyOf := []string{"certificate is not trusted", "certificate signed by unknown authority"}
@@ -649,7 +732,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 							return false
 						}
 
-						claims := map[string]interface{}{
+						claims := map[string]any{
 							"someclaim": "somevalue",
 						}
 						token, err := idp.Sign(0, claims)
@@ -688,7 +771,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 	DescribeTable("Check token expiration validity requirements (allowed)",
 		func(tokenValidForSeconds int64, maxTokenValiditySeconds *int64) {
 			now := time.Now()
-			token, err := sign(map[string]interface{}{
+			token, err := sign(map[string]any{
 				"iss": "https://issuer1",
 				"iat": now.Unix(),
 				"exp": now.Add(time.Second * time.Duration(tokenValidForSeconds)).Unix(),
@@ -707,7 +790,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 	DescribeTable("Check token expiration validity requirements (denied)",
 		func(tokenValidForSeconds int64, maxTokenValiditySeconds *int64, expectedError string) {
 			now := time.Now()
-			token, err := sign(map[string]interface{}{
+			token, err := sign(map[string]any{
 				"iss": "https://issuer1",
 				"iat": now.Unix(),
 				"exp": now.Add(time.Second * time.Duration(tokenValidForSeconds)).Unix(),
@@ -728,7 +811,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 	Describe("Check token expiration validity requirements (special cases)", func() {
 		It("should fail because of missing iat claim", func() {
 			now := time.Now()
-			token, err := sign(map[string]interface{}{
+			token, err := sign(map[string]any{
 				"iss": "https://issuer1",
 				"exp": now.Add(time.Second * 10).Unix(),
 			})
@@ -741,7 +824,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		It("should fail because of missing exp claim", func() {
 			now := time.Now()
-			token, err := sign(map[string]interface{}{
+			token, err := sign(map[string]any{
 				"iss": "https://issuer1",
 				"iat": now.Unix(),
 			})
@@ -754,7 +837,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		It("should fail because of negative iat claim", func() {
 			now := time.Now()
-			token, err := sign(map[string]interface{}{
+			token, err := sign(map[string]any{
 				"iss": "https://issuer1",
 				"exp": now.Unix(),
 				"iat": -1,
@@ -768,7 +851,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 		It("should fail because of negative exp claim", func() {
 			now := time.Now()
-			token, err := sign(map[string]interface{}{
+			token, err := sign(map[string]any{
 				"iss": "https://issuer1",
 				"exp": -1,
 				"iat": now.Unix(),
@@ -801,7 +884,6 @@ var _ = Describe("OpenIDConnect controller", func() {
 				keySet, err := remoteKeySet(ctx, log, serverURL, idp.CA())
 				if err != nil {
 					expectedError := fmt.Sprintf(`Get "%s/.well-known/openid-configuration": remote error: tls: protocol version not supported`, serverURL)
-					fmt.Println(err.Error())
 					return keySet == nil && err.Error() == expectedError
 				}
 				return false
