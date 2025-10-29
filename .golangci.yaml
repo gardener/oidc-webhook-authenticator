@@ -43,4 +43,4 @@ linters:
     rules:
       - linters:
           - staticcheck
-        text: 'SA1019:' # Excludes messages where deprecated variables are used
+        text: 'SA1019:(.+)ClientID' # Excludes messages where deprecated variables are used in ClientID

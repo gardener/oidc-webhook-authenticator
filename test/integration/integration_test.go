@@ -1771,8 +1771,7 @@ var _ = Describe("Integration", func() {
 })
 
 func waitForOIDCResourceToBeCreated(ctx context.Context, k8sClient client.Client, oidc *authenticationv1alpha1.OpenIDConnect) {
-	err := k8sClient.Create(ctx, oidc)
-	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient.Create(ctx, oidc)).NotTo(HaveOccurred())
 
 	openidconnectLookupKey := client.ObjectKeyFromObject(oidc)
 
@@ -1787,8 +1786,7 @@ func waitForOIDCResourceToBeDeleted(ctx context.Context, k8sClient client.Client
 	createdOpenIDConnect := &authenticationv1alpha1.OpenIDConnect{}
 	err := k8sClient.Get(ctx, openidconnectLookupKey, createdOpenIDConnect)
 	if err == nil {
-		err = k8sClient.Delete(ctx, oidc)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Delete(ctx, oidc)).NotTo(HaveOccurred())
 	} else {
 		Expect(apierrors.IsNotFound(err)).To(BeTrue())
 	}

@@ -61,15 +61,13 @@ type OIDCAuthenticationSpec struct {
 	// See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
-	// Please use the audiences field instead.
+	// Use the audiences field instead.
 	// +optional
 	ClientID string `json:"clientID,omitempty"`
 
-	// Audiences specifies the list of acceptable audience values ("aud" claim) for the ID Token.
-	// This list must include the client ID that the token was issued for.
+	// Audiences specifies the list of acceptable audience values ("aud" claim) that the ID Token is intended for.
 	// See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 	//
-	// TODO(theoddora): Make this field required in a future release when ClientID is removed.
 	// +optional
 	Audiences []string `json:"audiences,omitempty"`
 

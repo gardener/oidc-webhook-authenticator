@@ -152,6 +152,7 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	jwtAuthenticator := apiserver.JWTAuthenticator{
 		Issuer: apiserver.Issuer{
+			// TODO(theoddora): Make the Audiences field required in a future release when ClientID is removed.
 			AudienceMatchPolicy: apiserver.AudienceMatchPolicyMatchAny,
 			Audiences:           audiences,
 			URL:                 config.Spec.IssuerURL,

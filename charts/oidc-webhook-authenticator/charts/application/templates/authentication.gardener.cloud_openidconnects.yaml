@@ -75,9 +75,8 @@ spec:
             description: OIDCAuthenticationSpec defines the desired state of OpenIDConnect
             properties:
               audiences:
-                description: |
-                  Audiences specifies the list of acceptable audience values ("aud" claim) for the ID Token.
-                  This list must include the client ID that the token was issued for.
+                description: |-
+                  Audiences specifies the list of acceptable audience values ("aud" claim) that the ID Token is intended for.
                   See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
                 items:
                   type: string
@@ -97,7 +96,7 @@ spec:
                   See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 
                   Deprecated: This field is deprecated and will be removed in a future release.
-                  Please use the audiences field instead.
+                  Use the audiences field instead.
                 type: string
               extraClaims:
                 description: |-

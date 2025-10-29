@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -80,7 +81,7 @@ func NewIdentityServer(name string, numberOfPrivateKeys int) (*OIDCIdentityServe
 	}
 
 	privateKeys := []jose.JSONWebKey{}
-	for range numberOfPrivateKeys {
+	for i := 0; i < numberOfPrivateKeys; i++ {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
 			return nil, err
@@ -145,19 +146,11 @@ func (idp *OIDCIdentityServer) start(version uint16) error {
 		WriteTimeout: time.Second * 10,
 	}
 
-	ready := make(chan struct{})
 	go func() {
-		ln, err := net.Listen("tcp", idp.server.Addr)
-		if err != nil {
-			log.Fatalf("could not listen on %s: %v", idp.server.Addr, err)
-		}
-		close(ready)
-
-		if err := idp.server.ServeTLS(ln, "", ""); err != http.ErrServerClosed {
-			log.Printf("mock identity provider server stopped with error: %v", err)
+		if err := idp.server.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("mock identity provider server stopped with error: %v\n", err)
 		}
 	}()
-	<-ready
 
 	return nil
 }
