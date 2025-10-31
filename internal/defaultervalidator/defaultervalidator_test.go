@@ -65,6 +65,21 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(len(oidc.Spec.SupportedSigningAlgs)).To(Equal(2))
 			Expect(oidc.Spec.SupportedSigningAlgs).To(ConsistOf(authenticationv1alpha1.RS256, authenticationv1alpha1.RS512))
 		})
+
+		It("should default audiences to clientID if audiences is not set and clientID is set", func() {
+			oidc.Spec.ClientID = "some-client-id"
+			Expect(defaulterValidator.Default(ctx, oidc)).To(Succeed())
+			Expect(len(oidc.Spec.Audiences)).To(Equal(1))
+			Expect(oidc.Spec.Audiences[0]).To(Equal("some-client-id"))
+			Expect(oidc.Spec.ClientID).To(BeEmpty())
+		})
+
+		It("should not default audiences if audiences is already set", func() {
+			oidc.Spec.Audiences = []string{"aud1", "aud2"}
+			Expect(defaulterValidator.Default(ctx, oidc)).To(Succeed())
+			Expect(len(oidc.Spec.Audiences)).To(Equal(2))
+			Expect(oidc.Spec.Audiences).To(ConsistOf("aud1", "aud2"))
+		})
 	})
 
 	Context("create validation", func() {
@@ -109,11 +124,29 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(warnings).To(BeNil())
 		})
 
-		It("should return error for empty clientID", func() {
+		It("should not return error if audiences are set and clientID is not set", func() {
 			oidc.Spec.ClientID = ""
+			oidc.Spec.Audiences = []string{"aud1", "aud2"}
+			warnings, err := defaulterValidator.ValidateCreate(ctx, oidc)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should return error if both clientID and audiences are set", func() {
+			oidc.Spec.ClientID = "some-client-id"
+			oidc.Spec.Audiences = []string{"aud1", "aud2"}
 			warnings, err := defaulterValidator.ValidateCreate(ctx, oidc)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("clientID: Invalid value: \"\": must not be empty"))
+			Expect(err.Error()).To(Equal("clientID: Invalid value: \"some-client-id\": cannot set both clientID and audiences; use audiences only as clientID is deprecated and if both are set, the audience cannot be determined"))
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should return error for empty clientID and audiences", func() {
+			oidc.Spec.ClientID = ""
+			oidc.Spec.Audiences = []string{}
+			warnings, err := defaulterValidator.ValidateCreate(ctx, oidc)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("audiences: Invalid value: []: either audiences must be set or clientID must be provided as a fallback"))
 			Expect(warnings).To(BeNil())
 		})
 
@@ -204,6 +237,32 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("issuerURL: Invalid value: \"http://notsecure.com\": must start with https"))
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should return error if both clientID and audiences are set", func() {
+			newObj := authenticationv1alpha1.OpenIDConnect{
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					IssuerURL: "https://secure2.com",
+					ClientID:  "some-client-id",
+					Audiences: []string{"aud1", "aud2"},
+				},
+			}
+			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("clientID: Invalid value: \"some-client-id\": cannot set both clientID and audiences; use audiences only as clientID is deprecated and if both are set, the audience cannot be determined"))
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should allow migrating to audiences", func() {
+			newObj := authenticationv1alpha1.OpenIDConnect{
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					IssuerURL: "https://secure2.com",
+					Audiences: []string{"aud1", "aud2"},
+				},
+			}
+			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
+			Expect(err).ToNot(HaveOccurred())
 			Expect(warnings).To(BeNil())
 		})
 

@@ -81,7 +81,8 @@ metadata:
   name: foo
 spec:
   issuerURL: https://foo.bar
-  clientID: some-client-id
+  audiences:
+  - some-client-id
   usernameClaim: email
   usernamePrefix: "test-"
   groupsClaim: groups

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -12,11 +12,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	jose "github.com/go-jose/go-jose/v4"
@@ -118,37 +119,23 @@ func (idp *OIDCIdentityServer) StartWithMaxTLSVersion(version uint16) error {
 }
 
 func (idp *OIDCIdentityServer) start(version uint16) error {
-	certDir, err := os.MkdirTemp("", "mock-identity-provider-")
-	if err != nil {
-		return err
-	}
-
-	idp.certDir = certDir
-
-	certFile := filepath.Join(certDir, "tls.crt")
-	err = os.WriteFile(certFile, idp.certificate.CertificatePEM, 0600)
-	if err != nil {
-		return err
-	}
-
-	keyFile := filepath.Join(certDir, "tls.key")
-	err = os.WriteFile(keyFile, idp.certificate.PrivateKeyPEM, 0600)
-	if err != nil {
-		return err
-	}
-
 	port, err := suggestLocalPort()
 	if err != nil {
 		return err
 	}
 	idp.ServerSecurePort = port
 
-	var tlsConf *tls.Config
+	cert, err := tls.X509KeyPair(idp.certificate.CertificatePEM, idp.certificate.PrivateKeyPEM)
+	if err != nil {
+		return fmt.Errorf("failed to load TLS certificate: %w", err)
+	}
+
+	tlsConf := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
 	if version != 0 {
-		tlsConf = &tls.Config{
-			MaxVersion: version,
-			MinVersion: tls.VersionTLS12,
-		}
+		tlsConf.MaxVersion = version
 	}
 
 	idp.server = &http.Server{
@@ -160,10 +147,11 @@ func (idp *OIDCIdentityServer) start(version uint16) error {
 	}
 
 	go func() {
-		if err := idp.server.ListenAndServeTLS(certFile, keyFile); err != http.ErrServerClosed {
-			fmt.Printf("Could not start mock identity provider server: %v \n", err)
+		if err := idp.server.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("mock identity provider server stopped with error: %v\n", err)
 		}
 	}()
+
 	return nil
 }
 
@@ -238,13 +226,12 @@ func suggestLocalPort() (int, error) {
 }
 
 // Sign signs the passed claims with the private key corresponding to the passed index.
-func (idp *OIDCIdentityServer) Sign(idx int, claims interface{}) (string, error) {
+func (idp *OIDCIdentityServer) Sign(idx int, claims any) (string, error) {
 	if idx < 0 || idx >= len(idp.privateKeys) {
 		return "", fmt.Errorf("index out of boundaries")
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: idp.privateKeys[idx]}, (&jose.SignerOptions{}).WithType("JWT"))
-
 	if err != nil {
 		return "", err
 	}
@@ -263,7 +250,7 @@ func (idp *OIDCIdentityServer) CA() []byte {
 	return idp.certificate.CA.CertificatePEM
 }
 
-// PublicKeySetAsBytes returns the
+// PublicKeySetAsBytes returns the JSON-encoded public key set (JWKS) used by the identity server.
 func (idp *OIDCIdentityServer) PublicKeySetAsBytes() ([]byte, error) {
 	jwks, err := json.Marshal(idp.publicWebKeySet)
 	if err != nil {

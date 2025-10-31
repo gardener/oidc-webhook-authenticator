@@ -26,6 +26,11 @@ spec:
       jsonPath: .spec.clientID
       name: Client ID
       type: string
+    - description: Audiences specifies a list of acceptable audience(s) for the ID
+        token
+      jsonPath: .spec.audiences
+      name: Audiences
+      type: string
     - description: Username claim is the JWT field to use as the user's username
       jsonPath: .spec.usernameClaim
       name: Username Claim
@@ -66,6 +71,13 @@ spec:
           spec:
             description: OIDCAuthenticationSpec defines the desired state of OpenIDConnect
             properties:
+              audiences:
+                description: |-
+                  Audiences specifies the list of acceptable audience values ("aud" claim) that the ID Token is intended for.
+                  See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+                items:
+                  type: string
+                type: array
               caBundle:
                 description: |-
                   CABundle is a PEM encoded CA bundle which will be used to validate the OpenID server's certificate.
@@ -79,7 +91,9 @@ spec:
                   The plugin supports the "authorized party" OpenID Connect claim, which allows
                   specialized providers to issue tokens to a client for a different client.
                   See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
-                minLength: 1
+
+                  Deprecated: This field is deprecated and will be removed in a future release.
+                  Use the audiences field instead.
                 type: string
               extraClaims:
                 description: |-
@@ -189,7 +203,6 @@ spec:
                   The value "-" can be used to disable all prefixing.
                 type: string
             required:
-            - clientID
             - issuerURL
             - usernameClaim
             type: object

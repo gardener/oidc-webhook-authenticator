@@ -46,8 +46,10 @@ var (
 type DefaulterValidator struct{}
 
 // ensure webhookHandler implements CustomDefaulter and CustomValidator interfaces
-var _ webhook.CustomDefaulter = (*DefaulterValidator)(nil)
-var _ webhook.CustomValidator = (*DefaulterValidator)(nil)
+var (
+	_ webhook.CustomDefaulter = (*DefaulterValidator)(nil)
+	_ webhook.CustomValidator = (*DefaulterValidator)(nil)
+)
 
 // Default implements [webhook.CustomDefaulter] so a webhook can be registered for the type.
 func (*DefaulterValidator) Default(_ context.Context, obj runtime.Object) error {
@@ -73,6 +75,13 @@ func (*DefaulterValidator) Default(_ context.Context, obj runtime.Object) error 
 
 	if len(oidc.Spec.SupportedSigningAlgs) == 0 {
 		oidc.Spec.SupportedSigningAlgs = []authenticationv1alpha1.SigningAlgorithm{authenticationv1alpha1.RS256}
+	}
+
+	// Backward compatibility: if audiences is not set but clientID is, set audiences to clientID and clear clientID
+	// TODO(theoddora): Remove this defaulting when ClientID is removed.
+	if len(oidc.Spec.Audiences) == 0 && oidc.Spec.ClientID != "" {
+		oidc.Spec.Audiences = []string{oidc.Spec.ClientID}
+		oidc.Spec.ClientID = ""
 	}
 
 	return nil
@@ -116,7 +125,6 @@ func (*DefaulterValidator) ValidateDelete(_ context.Context, obj runtime.Object)
 	}
 
 	log.Info("Validating OpenIDConnect", "operation", "delete", "name", oidc.Name)
-
 	return nil, nil
 }
 
@@ -150,8 +158,12 @@ func validate(oidc *authenticationv1alpha1.OpenIDConnect) field.ErrorList {
 		}
 	}
 
-	if len(oidc.Spec.ClientID) == 0 {
-		allErrs = append(allErrs, field.Invalid(field.NewPath("clientID"), oidc.Spec.ClientID, "must not be empty"))
+	if oidc.Spec.ClientID == "" && len(oidc.Spec.Audiences) == 0 {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("audiences"), oidc.Spec.Audiences, "either audiences must be set or clientID must be provided as a fallback"))
+	}
+
+	if oidc.Spec.ClientID != "" && len(oidc.Spec.Audiences) > 0 {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("clientID"), oidc.Spec.ClientID, "cannot set both clientID and audiences; use audiences only as clientID is deprecated and if both are set, the audience cannot be determined"))
 	}
 
 	if isPrefixingMalicious(oidc.Spec.UsernamePrefix) {

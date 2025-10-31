@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -58,7 +58,6 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	defer log.Info("Reconcile finished")
 
 	config := &authenticationv1alpha1.OpenIDConnect{}
-
 	err := r.Get(ctx, req.NamespacedName, config)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -98,7 +97,6 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	var keySet gooidc.KeySet
-
 	if len(config.Spec.JWKS.Keys) != 0 {
 		keySet, err = newStaticKeySet(config.Spec.JWKS.Keys, algs)
 		if err != nil {
@@ -109,7 +107,6 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			// can't do anything until spec is changed
 			return reconcile.Result{}, nil
 		}
-
 	} else {
 		// retrieve the JWKS keySet from the jwksURL endpoint
 		keySet, err = remoteKeySet(ctx, r.log, config.Spec.IssuerURL, config.Spec.CABundle)
@@ -142,10 +139,23 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		usernamePrefix = config.Name + "/"
 	}
 
+	// If audiences are not set, use the client ID as the audience.
+	// TODO(theoddora): remove this logic in a future release when ClientID field is removed and already existing OIDCs have migrated to use Audienece.
+	audiences := config.Spec.Audiences
+	if len(audiences) == 0 {
+		if config.Spec.ClientID != "" {
+			audiences = []string{config.Spec.ClientID}
+		} else {
+			return reconcile.Result{}, fmt.Errorf("OIDC config %s must specify at least one audience or a clientID", req.Name)
+		}
+	}
+
 	jwtAuthenticator := apiserver.JWTAuthenticator{
 		Issuer: apiserver.Issuer{
-			URL:       config.Spec.IssuerURL,
-			Audiences: []string{config.Spec.ClientID},
+			// TODO(theoddora): Make the Audiences field required in a future release when ClientID is removed.
+			AudienceMatchPolicy: apiserver.AudienceMatchPolicyMatchAny,
+			Audiences:           audiences,
+			URL:                 config.Spec.IssuerURL,
 		},
 	}
 
@@ -182,7 +192,6 @@ func (r *OpenIDConnectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	auth, err := oidc.New(ctx, opts)
-
 	if err != nil {
 		log.Error(err, "Invalid OIDC authenticator, removing it from store")
 
@@ -483,7 +492,7 @@ func newStaticKeySet(jwks []byte, algs []string) (gooidc.KeySet, error) {
 	return &staticKeySet{keys: pubKeys, signatureAlgorithms: signatureAlgorithms}, nil
 }
 
-func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
+func unmarshalResp(r *http.Response, body []byte, v any) error {
 	err := json.Unmarshal(body, &v)
 	if err == nil {
 		return nil
