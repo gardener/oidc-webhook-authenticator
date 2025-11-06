@@ -66,14 +66,6 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(oidc.Spec.SupportedSigningAlgs).To(ConsistOf(authenticationv1alpha1.RS256, authenticationv1alpha1.RS512))
 		})
 
-		It("should default audiences to clientID if audiences is not set and clientID is set", func() {
-			oidc.Spec.ClientID = "some-client-id"
-			Expect(defaulterValidator.Default(ctx, oidc)).To(Succeed())
-			Expect(len(oidc.Spec.Audiences)).To(Equal(1))
-			Expect(oidc.Spec.Audiences[0]).To(Equal("some-client-id"))
-			Expect(oidc.Spec.ClientID).To(BeEmpty())
-		})
-
 		It("should not default audiences if audiences is already set", func() {
 			oidc.Spec.Audiences = []string{"aud1", "aud2"}
 			Expect(defaulterValidator.Default(ctx, oidc)).To(Succeed())

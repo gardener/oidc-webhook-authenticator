@@ -77,13 +77,6 @@ func (*DefaulterValidator) Default(_ context.Context, obj runtime.Object) error 
 		oidc.Spec.SupportedSigningAlgs = []authenticationv1alpha1.SigningAlgorithm{authenticationv1alpha1.RS256}
 	}
 
-	// Backward compatibility: if audiences is not set but clientID is, set audiences to clientID and clear clientID
-	// TODO(theoddora): Remove this defaulting when ClientID is removed.
-	if len(oidc.Spec.Audiences) == 0 && oidc.Spec.ClientID != "" {
-		oidc.Spec.Audiences = []string{oidc.Spec.ClientID}
-		oidc.Spec.ClientID = ""
-	}
-
 	return nil
 }
 
