@@ -66,14 +66,6 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(oidc.Spec.SupportedSigningAlgs).To(ConsistOf(authenticationv1alpha1.RS256, authenticationv1alpha1.RS512))
 		})
 
-		It("should default audiences to clientID if audiences is not set and clientID is set", func() {
-			oidc.Spec.ClientID = "some-client-id"
-			Expect(defaulterValidator.Default(ctx, oidc)).To(Succeed())
-			Expect(len(oidc.Spec.Audiences)).To(Equal(1))
-			Expect(oidc.Spec.Audiences[0]).To(Equal("some-client-id"))
-			Expect(oidc.Spec.ClientID).To(BeEmpty())
-		})
-
 		It("should not default audiences if audiences is already set", func() {
 			oidc.Spec.Audiences = []string{"aud1", "aud2"}
 			Expect(defaulterValidator.Default(ctx, oidc)).To(Succeed())
@@ -85,7 +77,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 	Context("create validation", func() {
 		BeforeEach(func() {
 			oidc.Spec.IssuerURL = "https://secure.com"
-			oidc.Spec.ClientID = "some-client-id"
+			oidc.Spec.Audiences = []string{"some-client-id"}
 		})
 
 		It("should return error if issuer url is not starting with https", func() {
@@ -138,7 +130,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			warnings, err := defaulterValidator.ValidateCreate(ctx, oidc)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("clientID: Invalid value: \"some-client-id\": cannot set both clientID and audiences; use audiences only as clientID is deprecated and if both are set, the audience cannot be determined"))
-			Expect(warnings).To(BeNil())
+			Expect(warnings).To(ConsistOf("clientID is deprecated and will be removed in future releases; use audiences instead"))
 		})
 
 		It("should return error for empty clientID and audiences", func() {
@@ -148,6 +140,14 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("audiences: Invalid value: []: either audiences must be set or clientID must be provided as a fallback"))
 			Expect(warnings).To(BeNil())
+		})
+
+		It("should return warning if clientID is set", func() {
+			oidc.Spec.ClientID = "some-client-id"
+			oidc.Spec.Audiences = []string{}
+			warnings, err := defaulterValidator.ValidateCreate(ctx, oidc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(warnings).To(ConsistOf("clientID is deprecated and will be removed in future releases; use audiences instead"))
 		})
 
 		DescribeTable("should not allow username prefix to start with 'system:'",
@@ -212,14 +212,14 @@ var _ = Describe("OpenidconnectWebhook", func() {
 	Context("update validation", func() {
 		BeforeEach(func() {
 			oidc.Spec.IssuerURL = "https://secure.com"
-			oidc.Spec.ClientID = "some-client-id"
+			oidc.Spec.Audiences = []string{"some-client-id"}
 		})
 
 		It("should not return error if new oidc object is valid", func() {
 			newObj := authenticationv1alpha1.OpenIDConnect{
 				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 					IssuerURL: "https://secure2.com",
-					ClientID:  "some-id",
+					Audiences: []string{"some-id"},
 				},
 			}
 			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
@@ -231,7 +231,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			newObj := authenticationv1alpha1.OpenIDConnect{
 				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 					IssuerURL: "http://notsecure.com",
-					ClientID:  "some-id",
+					Audiences: []string{"some-id"},
 				},
 			}
 			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
@@ -251,10 +251,23 @@ var _ = Describe("OpenidconnectWebhook", func() {
 			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("clientID: Invalid value: \"some-client-id\": cannot set both clientID and audiences; use audiences only as clientID is deprecated and if both are set, the audience cannot be determined"))
-			Expect(warnings).To(BeNil())
+			Expect(warnings).To(ConsistOf("clientID is deprecated and will be removed in future releases; use audiences instead"))
+		})
+
+		It("should return warning if clientID is set", func() {
+			newObj := authenticationv1alpha1.OpenIDConnect{
+				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
+					IssuerURL: "https://secure2.com",
+					ClientID:  "some-client-id",
+				},
+			}
+			warnings, err := defaulterValidator.ValidateUpdate(ctx, oidc, &newObj)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(warnings).To(ConsistOf("clientID is deprecated and will be removed in future releases; use audiences instead"))
 		})
 
 		It("should allow migrating to audiences", func() {
+			oidc.Spec.ClientID = "some-client-id"
 			newObj := authenticationv1alpha1.OpenIDConnect{
 				Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 					IssuerURL: "https://secure2.com",
@@ -272,7 +285,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 				newObj := authenticationv1alpha1.OpenIDConnect{
 					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:      "https://secure2.com",
-						ClientID:       "some-id",
+						Audiences:      []string{"some-id"},
 						UsernamePrefix: &maliciousPrefix,
 					},
 				}
@@ -291,7 +304,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 				newObj := authenticationv1alpha1.OpenIDConnect{
 					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:      "https://secure2.com",
-						ClientID:       "some-id",
+						Audiences:      []string{"some-id"},
 						UsernamePrefix: &validPrefix,
 					},
 				}
@@ -313,7 +326,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 				newObj := authenticationv1alpha1.OpenIDConnect{
 					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:    "https://secure2.com",
-						ClientID:     "some-id",
+						Audiences:    []string{"some-id"},
 						GroupsPrefix: &maliciousPrefix,
 					},
 				}
@@ -332,7 +345,7 @@ var _ = Describe("OpenidconnectWebhook", func() {
 				newObj := authenticationv1alpha1.OpenIDConnect{
 					Spec: authenticationv1alpha1.OIDCAuthenticationSpec{
 						IssuerURL:    "https://secure2.com",
-						ClientID:     "some-id",
+						Audiences:    []string{"some-id"},
 						GroupsPrefix: &validPrefix,
 					},
 				}
