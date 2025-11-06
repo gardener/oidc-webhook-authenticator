@@ -91,7 +91,8 @@ func (*DefaulterValidator) ValidateCreate(_ context.Context, obj runtime.Object)
 
 	log.Info("Validating OpenIDConnect", "operation", "create", "name", oidc.Name)
 
-	return nil, validate(oidc).ToAggregate()
+	warnings, errorList := validate(oidc)
+	return warnings, errorList.ToAggregate()
 }
 
 // ValidateUpdate validates the object on update.
@@ -105,7 +106,8 @@ func (*DefaulterValidator) ValidateUpdate(_ context.Context, _, obj runtime.Obje
 
 	log.Info("Validating OpenIDConnect", "operation", "update", "name", oidc.Name)
 
-	return nil, validate(oidc).ToAggregate()
+	warnings, errorList := validate(oidc)
+	return warnings, errorList.ToAggregate()
 }
 
 // ValidateDelete validates the object on deletion.
@@ -121,8 +123,11 @@ func (*DefaulterValidator) ValidateDelete(_ context.Context, obj runtime.Object)
 	return nil, nil
 }
 
-func validate(oidc *authenticationv1alpha1.OpenIDConnect) field.ErrorList {
-	allErrs := field.ErrorList{}
+func validate(oidc *authenticationv1alpha1.OpenIDConnect) (admission.Warnings, field.ErrorList) {
+	var (
+		allErrs  = field.ErrorList{}
+		warnings admission.Warnings
+	)
 
 	url, err := url.Parse(oidc.Spec.IssuerURL)
 	if err != nil {
@@ -159,6 +164,10 @@ func validate(oidc *authenticationv1alpha1.OpenIDConnect) field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("clientID"), oidc.Spec.ClientID, "cannot set both clientID and audiences; use audiences only as clientID is deprecated and if both are set, the audience cannot be determined"))
 	}
 
+	if oidc.Spec.ClientID != "" {
+		warnings = append(warnings, "clientID is deprecated and will be removed in future releases; use audiences instead")
+	}
+
 	if isPrefixingMalicious(oidc.Spec.UsernamePrefix) {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("usernamePrefix"), oidc.Spec.UsernamePrefix, fmt.Sprintf("must not start with %s", authenticationv1alpha1.SystemPrefix)))
 	}
@@ -183,7 +192,7 @@ func validate(oidc *authenticationv1alpha1.OpenIDConnect) field.ErrorList {
 		}
 	}
 
-	return allErrs
+	return warnings, allErrs
 }
 
 func validateJWKS(jwks []byte) error {
