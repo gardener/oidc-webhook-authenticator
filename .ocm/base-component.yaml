@@ -5,6 +5,8 @@ labels:
       username: dimityrmirchev
     - type: githubUser
       username: vpnachev
+    - type: githubUser
+      username: theoddora
 
 main-source:
   labels:
