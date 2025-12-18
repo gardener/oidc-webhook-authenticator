@@ -1,0 +1,15 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: /
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 5
+  allow:
+  - dependency-name: "k8s.io/.*"
+  - dependency-name: "sigs.k8s.io/controller-runtime"
+- package-ecosystem: docker
+  directories:
+  - /
+  schedule:
+    interval: daily
