@@ -190,19 +190,16 @@ func newHandler(opts *options.Config, authWH *authentication.Webhook, scheme *ru
 		healthzPath    = "/healthz"
 	)
 
-	var (
-		oidc               = &authenticationv1alpha1.OpenIDConnect{}
-		defaulterValidator = &defaultervalidator.DefaulterValidator{}
-	)
+	defaulterValidator := &defaultervalidator.DefaulterValidator{}
 
 	mutatingLogger := ctrl.Log.WithName("webhooks").WithName("Mutating")
-	defaultingWebhook := admission.WithCustomDefaulter(scheme, oidc, defaulterValidator)
+	defaultingWebhook := admission.WithDefaulter(scheme, defaulterValidator)
 	defaultingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
 		return mutatingLogger
 	}
 
 	validatingLogger := ctrl.Log.WithName("webhooks").WithName("Validating")
-	validatingWebhook := admission.WithCustomValidator(scheme, oidc, defaulterValidator)
+	validatingWebhook := admission.WithValidator(scheme, defaulterValidator)
 	validatingWebhook.LogConstructor = func(_ logr.Logger, _ *admission.Request) logr.Logger {
 		return validatingLogger
 	}
