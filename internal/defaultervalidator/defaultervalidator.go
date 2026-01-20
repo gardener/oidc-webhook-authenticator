@@ -12,11 +12,9 @@ import (
 	"strings"
 
 	"github.com/go-jose/go-jose/v4"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	certutil "k8s.io/client-go/util/cert"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	authenticationv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
@@ -47,17 +45,12 @@ type DefaulterValidator struct{}
 
 // ensure webhookHandler implements CustomDefaulter and CustomValidator interfaces
 var (
-	_ webhook.CustomDefaulter = (*DefaulterValidator)(nil)
-	_ webhook.CustomValidator = (*DefaulterValidator)(nil)
+	_ admission.Defaulter[*authenticationv1alpha1.OpenIDConnect] = (*DefaulterValidator)(nil)
+	_ admission.Validator[*authenticationv1alpha1.OpenIDConnect] = (*DefaulterValidator)(nil)
 )
 
 // Default implements [webhook.CustomDefaulter] so a webhook can be registered for the type.
-func (*DefaulterValidator) Default(_ context.Context, obj runtime.Object) error {
-	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
-	if !ok {
-		return fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
-	}
-
+func (*DefaulterValidator) Default(_ context.Context, oidc *authenticationv1alpha1.OpenIDConnect) error {
 	log.Info("Defaulting OpenIDConnect resource", "name", oidc.Name)
 
 	var (
@@ -82,13 +75,8 @@ func (*DefaulterValidator) Default(_ context.Context, obj runtime.Object) error 
 
 // ValidateCreate validates the object on creation.
 // Return an error if the object is invalid.
-// ValidateCreate implements [webhook.CustomValidator] so a webhook can be registered for the type.
-func (*DefaulterValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
-	if !ok {
-		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
-	}
-
+// ValidateCreate implements [admission.Validator] so a webhook can be registered for the type.
+func (*DefaulterValidator) ValidateCreate(_ context.Context, oidc *authenticationv1alpha1.OpenIDConnect) (admission.Warnings, error) {
 	log.Info("Validating OpenIDConnect", "operation", "create", "name", oidc.Name)
 
 	warnings, errorList := validate(oidc)
@@ -97,13 +85,8 @@ func (*DefaulterValidator) ValidateCreate(_ context.Context, obj runtime.Object)
 
 // ValidateUpdate validates the object on update.
 // Return an error if the object is invalid.
-// ValidateUpdate implements [webhook.CustomValidator] so a webhook can be registered for the type.
-func (*DefaulterValidator) ValidateUpdate(_ context.Context, _, obj runtime.Object) (admission.Warnings, error) {
-	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
-	if !ok {
-		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
-	}
-
+// ValidateUpdate implements [admission.Validator] so a webhook can be registered for the type.
+func (*DefaulterValidator) ValidateUpdate(_ context.Context, _, oidc *authenticationv1alpha1.OpenIDConnect) (admission.Warnings, error) {
 	log.Info("Validating OpenIDConnect", "operation", "update", "name", oidc.Name)
 
 	warnings, errorList := validate(oidc)
@@ -112,13 +95,8 @@ func (*DefaulterValidator) ValidateUpdate(_ context.Context, _, obj runtime.Obje
 
 // ValidateDelete validates the object on deletion.
 // Return an error if the object is invalid.
-// ValidateDelete implements [webhook.CustomValidator] so a webhook can be registered for the type.
-func (*DefaulterValidator) ValidateDelete(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	oidc, ok := obj.(*authenticationv1alpha1.OpenIDConnect)
-	if !ok {
-		return nil, fmt.Errorf("expected *authenticationv1alpha1.OpenIDConnect but got %T", obj)
-	}
-
+// ValidateDelete implements [admission.Validator] so a webhook can be registered for the type.
+func (*DefaulterValidator) ValidateDelete(_ context.Context, oidc *authenticationv1alpha1.OpenIDConnect) (admission.Warnings, error) {
 	log.Info("Validating OpenIDConnect", "operation", "delete", "name", oidc.Name)
 	return nil, nil
 }
