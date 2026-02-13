@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 FROM registry.k8s.io/kube-apiserver:v1.33.2 AS kube-apiserver
-FROM quay.io/coreos/etcd:v3.5.21 AS etcd
+FROM quay.io/coreos/etcd:v3.6.8 AS etcd
 FROM golang:1.26.0 AS tools
 
 COPY --from=kube-apiserver /usr/local/bin/kube-apiserver /testbin/kube-apiserver
