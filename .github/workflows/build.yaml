@@ -17,7 +17,7 @@ jobs:
     with:
       mode: ${{ inputs.mode }}
     permissions:
-      contents: read
+      id-token: write
 
   oci-images:
     name: Build OCI-Images
