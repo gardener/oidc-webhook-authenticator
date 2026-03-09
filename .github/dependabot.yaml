@@ -8,8 +8,12 @@ updates:
   allow:
   - dependency-name: "k8s.io/.*"
   - dependency-name: "sigs.k8s.io/controller-runtime"
+  labels:
+  - kind/enhancement
 - package-ecosystem: docker
   directories:
   - /
   schedule:
     interval: daily
+  labels:
+  - kind/enhancement
