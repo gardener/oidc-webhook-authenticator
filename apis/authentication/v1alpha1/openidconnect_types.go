@@ -189,6 +189,3 @@ const (
 // OIDCAuthenticationStatus is the status of a OpenIDConnect resource.
 type OIDCAuthenticationStatus struct{}
 
-func init() {
-	SchemeBuilder.Register(&OpenIDConnect{}, &OpenIDConnectList{})
-}
