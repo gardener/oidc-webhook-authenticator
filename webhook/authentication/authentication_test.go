@@ -130,7 +130,7 @@ var _ = Describe("Authentication", func() {
 	Context("authenticator returns error", func() {
 		It("should return empty user info", func() {
 			mockAuth.isAuthenticated = true
-			mockAuth.err = errors.New("Error occured during the authentication process")
+			mockAuth.err = errors.New("Error occurred during the authentication process")
 			webhook := mockAuth.defaultWebhook()
 
 			req, err := http.NewRequest(http.MethodPost, "/some-valid-path", bytes.NewBufferString(actualTokenReviewJSON))

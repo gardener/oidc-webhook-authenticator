@@ -57,7 +57,7 @@ func init() {
 	prometheus.MustRegister(totalTokenValidations, durationTokenValidation, requestLatency, requestTotal, requestInFlight)
 }
 
-// IncTotalRequestValidationErrors increments the total number of errors occured during token validation requests
+// IncTotalRequestValidationErrors increments the total number of errors occurred during token validation requests
 func IncTotalRequestValidationErrors() {
 	totalTokenValidations.WithLabelValues("error").Inc()
 }
