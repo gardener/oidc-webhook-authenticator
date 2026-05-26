@@ -7,7 +7,13 @@ updates:
   open-pull-requests-limit: 5
   allow:
   - dependency-name: "k8s.io/.*"
-  - dependency-name: "sigs.k8s.io/controller-runtime"
+  - dependency-name: "sigs.k8s.io/.*"
+  - dependency-name: "golang.org/x/.*"
+  - dependency-name: "github.com/go-jose/.*"
+  - dependency-name: "github.com/coreos/go-oidc"
+  - dependency-name: "github.com/coreos/go-oidc/v3"
+  - dependency-name: "github.com/onsi/.*"
+  - dependency-name: "github.com/prometheus/.*"
   labels:
   - kind/enhancement
 - package-ecosystem: docker
