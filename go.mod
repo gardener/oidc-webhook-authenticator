@@ -3,8 +3,8 @@ module github.com/gardener/oidc-webhook-authenticator
 go 1.26.0
 
 require (
-	github.com/coreos/go-oidc/v3 v3.15.0
-	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/coreos/go-oidc/v3 v3.18.0
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.27.4
 	github.com/onsi/gomega v1.39.0
@@ -88,7 +88,7 @@ require (
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/term v0.39.0 // indirect
