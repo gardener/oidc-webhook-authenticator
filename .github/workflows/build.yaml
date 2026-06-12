@@ -79,7 +79,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: stable
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
       - name: run-test
         shell: bash
