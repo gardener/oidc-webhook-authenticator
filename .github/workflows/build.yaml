@@ -77,10 +77,15 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
+      - name: get-go-version
+        id: go-version
+        run: |
+          version=$(grep -oP 'FROM golang:\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
-      - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
+          go-version: ${{ steps.go-version.outputs.version }}
       - name: run-test
         shell: bash
         run: |
