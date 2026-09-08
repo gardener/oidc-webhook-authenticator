@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM registry.k8s.io/kube-apiserver:v1.36.4 AS kube-apiserver
+FROM registry.k8s.io/kube-apiserver:v1.37.0 AS kube-apiserver
 FROM quay.io/coreos/etcd:v3.6.13 AS etcd
 FROM golang:1.27.0 AS tools
 
