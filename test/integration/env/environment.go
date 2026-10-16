@@ -71,7 +71,7 @@ func (e *OIDCWebhookTestEnvironment) Start() (*rest.Config, error) {
 	}
 
 	e.certDir = filepath.Join(e.envRootDir, "kube-apiserver-certs")
-	if err := os.Mkdir(e.certDir, fs.FileMode(0755)); err != nil {
+	if err := os.Mkdir(e.certDir, fs.FileMode(0750)); err != nil {
 		return nil, err
 	}
 
