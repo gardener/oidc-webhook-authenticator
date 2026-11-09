@@ -702,6 +702,7 @@ var _ = Describe("OpenIDConnect controller", func() {
 
 					payload, err := staticKeySet.VerifySignature(ctx, token)
 					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).NotTo(ContainSubstring("no keys matches jwk keyid"))
 					Expect(payload).To(BeNil())
 				})
 
