@@ -403,10 +403,17 @@ func (s staticKeySet) VerifySignature(_ context.Context, jwt string) (payload []
 	}
 	kid := jws.Signatures[0].Header.KeyID
 
+	// The "kid" header is optional, see https://www.rfc-editor.org/rfc/rfc7515#section-4.1.4.
+	// If it is not set, try all keys, the same way the remote key set does.
 	for _, key := range s.keys {
-		if key.KeyID == kid {
-			return jws.Verify(key)
+		if kid == "" || key.KeyID == kid {
+			if payload, err = jws.Verify(key); err == nil {
+				return payload, nil
+			}
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	return nil, fmt.Errorf("no keys matches jwk keyid")

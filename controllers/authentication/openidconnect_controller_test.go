@@ -632,6 +632,33 @@ var _ = Describe("OpenIDConnect controller", func() {
 				})
 			})
 
+			Context("VerifySignature of a valid jwt without kid header", func() {
+				It("verification should succeed", func() {
+					key1, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+					key2, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+
+					jwks, err := json.Marshal(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+						{Key: key1.Public(), KeyID: "key-1", Algorithm: string(jose.RS256), Use: "sig"},
+						{Key: key2.Public(), KeyID: "key-2", Algorithm: string(jose.RS256), Use: "sig"},
+					}})
+					Expect(err).NotTo(HaveOccurred())
+
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS256"})
+					Expect(err).NotTo(HaveOccurred())
+
+					signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key2}, (&jose.SignerOptions{}).WithType("JWT"))
+					Expect(err).NotTo(HaveOccurred())
+					token, err := jwt.Signed(signer).Claims(map[string]any{"someclaim": "somevalue"}).Serialize()
+					Expect(err).NotTo(HaveOccurred())
+
+					payload, err := staticKeySet.VerifySignature(ctx, token)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(payload).To(Equal([]byte(`{"someclaim":"somevalue"}`)))
+				})
+			})
+
 			Context("Verify Signature of an invalid jwt", func() {
 				It("verification should fail because of not matching kid", func() {
 					idp1, err := mock.NewIdentityServer("test-idp", 1)
@@ -656,6 +683,53 @@ var _ = Describe("OpenIDConnect controller", func() {
 					payload, err := staticKeySet.VerifySignature(ctx, token)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(ContainSubstring("no keys matches jwk keyid"))
+					Expect(payload).To(BeNil())
+				})
+
+				It("verification should fail because no key verifies a jwt without kid header", func() {
+					jwks, err := idp.PublicKeySetAsBytes()
+					Expect(err).NotTo(HaveOccurred())
+
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS256"})
+					Expect(err).NotTo(HaveOccurred())
+
+					key, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+					signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, (&jose.SignerOptions{}).WithType("JWT"))
+					Expect(err).NotTo(HaveOccurred())
+					token, err := jwt.Signed(signer).Claims(map[string]any{"someclaim": "somevalue"}).Serialize()
+					Expect(err).NotTo(HaveOccurred())
+
+					payload, err := staticKeySet.VerifySignature(ctx, token)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).NotTo(ContainSubstring("no keys matches jwk keyid"))
+					Expect(payload).To(BeNil())
+				})
+
+				It("verification should fail because signature is invalid for the matching kid", func() {
+					key1, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+
+					jwks, err := json.Marshal(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+						{Key: key1.Public(), KeyID: "key-1", Algorithm: string(jose.RS256), Use: "sig"},
+					}})
+					Expect(err).NotTo(HaveOccurred())
+
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS256"})
+					Expect(err).NotTo(HaveOccurred())
+
+					key2, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+
+					opts := (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", "key-1")
+					signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key2}, opts)
+					Expect(err).NotTo(HaveOccurred())
+					token, err := jwt.Signed(signer).Claims(map[string]any{"someclaim": "somevalue"}).Serialize()
+					Expect(err).NotTo(HaveOccurred())
+
+					payload, err := staticKeySet.VerifySignature(ctx, token)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).NotTo(ContainSubstring("no keys matches jwk keyid"))
 					Expect(payload).To(BeNil())
 				})
 
