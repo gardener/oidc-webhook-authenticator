@@ -706,6 +706,33 @@ var _ = Describe("OpenIDConnect controller", func() {
 					Expect(payload).To(BeNil())
 				})
 
+				It("verification should fail because signature is invalid for the matching kid", func() {
+					key1, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+
+					jwks, err := json.Marshal(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+						{Key: key1.Public(), KeyID: "key-1", Algorithm: string(jose.RS256), Use: "sig"},
+					}})
+					Expect(err).NotTo(HaveOccurred())
+
+					staticKeySet, err := newStaticKeySet(jwks, []string{"RS256"})
+					Expect(err).NotTo(HaveOccurred())
+
+					key2, err := rsa.GenerateKey(rand.Reader, 2048)
+					Expect(err).NotTo(HaveOccurred())
+
+					opts := (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", "key-1")
+					signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key2}, opts)
+					Expect(err).NotTo(HaveOccurred())
+					token, err := jwt.Signed(signer).Claims(map[string]any{"someclaim": "somevalue"}).Serialize()
+					Expect(err).NotTo(HaveOccurred())
+
+					payload, err := staticKeySet.VerifySignature(ctx, token)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).NotTo(ContainSubstring("no keys matches jwk keyid"))
+					Expect(payload).To(BeNil())
+				})
+
 				It("verification should fail because of not supported signature algorithm", func() {
 					idp1, err := mock.NewIdentityServer("test-idp", 1)
 					Expect(err).NotTo(HaveOccurred())
